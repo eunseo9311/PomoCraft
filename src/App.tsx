@@ -21,10 +21,10 @@ const GRAVITY = 0.8;           // 중력
 const GROUND_Y = 0;            // 땅 높이
 
 // 자원 채집 상수
-const RESOURCE_SPAWN_INTERVAL = 3000;   // 자원 스폰 간격 (ms)
-const AUTO_GATHER_INTERVAL = 5000;      // 자동 채집 간격 (ms)
-const RESOURCE_DESPAWN_TIME = 30000;    // 자원 디스폰 시간 (ms)
-const MAX_RESOURCES_ON_SCREEN = 8;      // 화면에 최대 자원 블록 수
+const RESOURCE_SPAWN_INTERVAL = 8000;   // 자원 스폰 간격 (ms) - 8초
+const AUTO_GATHER_INTERVAL = 10000;     // 자동 채집 간격 (ms) - 10초
+const RESOURCE_DESPAWN_TIME = 25000;    // 자원 디스폰 시간 (ms) - 25초
+const MAX_RESOURCES_ON_SCREEN = 4;      // 화면에 최대 자원 블록 수
 
 // 자원 타입 및 확률 (집중 시간에 따라 변경됨)
 interface ResourceConfig {
@@ -687,7 +687,7 @@ function App() {
         id: Date.now() + Math.random(),
         type: resourceType,
         x: 5 + Math.random() * 85,  // 화면 5%~90% 범위
-        bottom: 15 + Math.random() * 15, // 땅 위 15%~30%
+        bottom: 5 + Math.random() * 8, // 땅 위 5%~13% (지면 근처)
         size: 40,
         flip: false,
         spawnedAt: Date.now(),
