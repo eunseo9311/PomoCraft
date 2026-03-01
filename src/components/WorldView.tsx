@@ -1,6 +1,7 @@
 import { useRef, useEffect } from 'react';
 import { WorldDecoration, DragInfo, TimerMode, InventorySlot, SteveState, SpriteType } from '../types';
 import { PixelSprite } from './PixelSprite';
+import { ItemSprite } from './ItemSprite';
 
 interface WorldViewProps {
   decorations: WorldDecoration[];
@@ -138,7 +139,7 @@ export function WorldView({
               zIndex: dragInfo?.id === deco.id ? 999 : Math.round(100 - deco.bottom),
             }}
           >
-            <PixelSprite name={deco.type} size={deco.size} />
+            <ItemSprite itemId={deco.type} size={deco.size} />
           </div>
         ))}
 
