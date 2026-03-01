@@ -78,6 +78,22 @@ export function InventoryModal({
     }
   }, [isOpen]);
 
+  // 마우스 업 이벤트 (전역) - 훅은 조건부 return 전에 선언해야 함
+  useEffect(() => {
+    if (!isOpen) return;
+    if (isDragging) {
+      const handleGlobalMouseUp = () => {
+        if (isDragging && draggedSlots.length > 0) {
+          onDragDistribute(draggedSlots, isRightDrag);
+        }
+        setIsDragging(false);
+        setDraggedSlots([]);
+      };
+      window.addEventListener('mouseup', handleGlobalMouseUp);
+      return () => window.removeEventListener('mouseup', handleGlobalMouseUp);
+    }
+  }, [isOpen, isDragging, draggedSlots, isRightDrag, onDragDistribute]);
+
   // 제작 슬롯 클릭
   const handleCraftSlotClick = (index: number) => {
     if (heldItem) {
@@ -153,24 +169,6 @@ export function InventoryModal({
       }
     }
   };
-
-  // 드래그 종료
-  const handleMouseUp = () => {
-    if (isDragging && draggedSlots.length > 0) {
-      onDragDistribute(draggedSlots, isRightDrag);
-    }
-    setIsDragging(false);
-    setDraggedSlots([]);
-  };
-
-  // 마우스 업 이벤트 (전역)
-  useEffect(() => {
-    if (isDragging) {
-      const handleGlobalMouseUp = () => handleMouseUp();
-      window.addEventListener('mouseup', handleGlobalMouseUp);
-      return () => window.removeEventListener('mouseup', handleGlobalMouseUp);
-    }
-  }, [isDragging, draggedSlots]);
 
   const renderSlot = (slotIndex: number, isHotbar = false) => {
     const slot = inventory.slots[slotIndex];
