@@ -95,40 +95,165 @@ body {
 }
 
 .sky-day {
-  background-color: #78a7ff;
+  background: linear-gradient(180deg, #79c0ff 0%, #a8d8ff 50%, #c4e4ff 100%);
+}
+
+.sky-sunset {
+  background: linear-gradient(180deg, #1a1a3a 0%, #4a2c4a 15%, #8b4513 35%, #cd5c00 55%, #ff6b35 75%, #ff8c42 100%);
 }
 
 .sky-night {
-  background-color: #111522;
+  background: linear-gradient(180deg, #0a0a14 0%, #141428 40%, #1a1a3a 100%);
 }
 
+/* 별 (밤에만 표시) */
+.stars-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 75%;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 2s ease;
+}
+
+.sky-night .stars-container {
+  opacity: 1;
+}
+
+.star {
+  position: absolute;
+  background-color: #fff;
+  animation: twinkle 3s ease-in-out infinite;
+}
+
+.star-small {
+  width: 2px;
+  height: 2px;
+}
+
+.star-medium {
+  width: 3px;
+  height: 3px;
+  box-shadow: 0 0 2px #fff;
+}
+
+.star-large {
+  width: 4px;
+  height: 4px;
+  box-shadow: 0 0 4px #fff, 0 0 8px rgba(255,255,255,0.5);
+}
+
+@keyframes twinkle {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 1; }
+}
+
+
+/* 마인크래프트 스타일 태양/달 */
 .celestial {
   position: absolute;
-  width: 60px;
-  height: 60px;
-  transition: top 2s ease, background-color 2s ease;
+  width: 64px;
+  height: 64px;
+  transition: top 1s ease, background 1s ease, box-shadow 1s ease;
+  image-rendering: pixelated;
 }
 
 .sun {
-  background-color: #ffe600;
-  top: 10%;
+  background: linear-gradient(135deg, #fff9c4 0%, #ffeb3b 30%, #ffc107 70%, #ff9800 100%);
+  top: 8%;
   left: 70%;
-  box-shadow: 0 0 0 4px #ffd000;
+  box-shadow:
+    0 0 20px rgba(255, 200, 50, 0.8),
+    0 0 40px rgba(255, 150, 0, 0.4),
+    inset -4px -4px 0 rgba(255, 150, 0, 0.3),
+    inset 4px 4px 0 rgba(255, 255, 200, 0.5);
+}
+
+.sun-sunset {
+  background: linear-gradient(135deg, #ffcc00 0%, #ff9500 30%, #ff6600 70%, #ff3300 100%);
+  top: 55%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 80px;
+  height: 80px;
+  box-shadow:
+    0 0 40px rgba(255, 100, 0, 0.9),
+    0 0 80px rgba(255, 50, 0, 0.6),
+    0 0 120px rgba(255, 100, 0, 0.3),
+    inset -4px -4px 0 rgba(255, 50, 0, 0.4),
+    inset 4px 4px 0 rgba(255, 200, 100, 0.5);
 }
 
 .moon {
-  background-color: #ddd;
-  top: 10%;
+  background: linear-gradient(135deg, #e8e8e8 0%, #c0c0c0 50%, #a0a0a0 100%);
+  top: 8%;
   left: 70%;
-  box-shadow: 0 0 0 4px #aaa;
+  box-shadow:
+    0 0 15px rgba(200, 200, 220, 0.6),
+    0 0 30px rgba(150, 150, 180, 0.3),
+    inset -4px -4px 0 rgba(80, 80, 80, 0.3),
+    inset 4px 4px 0 rgba(255, 255, 255, 0.4);
 }
 
+/* 달 크레이터 효과 */
+.moon::before {
+  content: '';
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  background: rgba(100, 100, 100, 0.3);
+  border-radius: 50%;
+  top: 15px;
+  left: 20px;
+}
+
+.moon::after {
+  content: '';
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  background: rgba(100, 100, 100, 0.25);
+  border-radius: 50%;
+  top: 35px;
+  left: 35px;
+}
+
+/* 마인크래프트 스타일 픽셀 구름 */
 .mc-cloud {
   position: absolute;
-  background-color: rgba(255, 255, 255, 0.9);
-  box-shadow: inset -4px -4px 0 rgba(200, 200, 200, 0.5);
+  background-color: #fff;
+  box-shadow:
+    inset -4px -4px 0 rgba(180, 180, 180, 0.6),
+    inset 4px 4px 0 rgba(255, 255, 255, 0.8);
   animation: floatCloud linear infinite;
   pointer-events: none;
+  image-rendering: pixelated;
+}
+
+.mc-cloud::before,
+.mc-cloud::after {
+  content: '';
+  position: absolute;
+  background-color: #fff;
+  box-shadow:
+    inset -4px -4px 0 rgba(180, 180, 180, 0.6),
+    inset 4px 4px 0 rgba(255, 255, 255, 0.8);
+}
+
+.mc-cloud::before {
+  width: 60%;
+  height: 70%;
+  top: -40%;
+  left: 20%;
+}
+
+.mc-cloud::after {
+  width: 40%;
+  height: 50%;
+  top: -20%;
+  left: 50%;
 }
 
 @keyframes floatCloud {
@@ -144,14 +269,59 @@ body {
   animation-play-state: paused;
 }
 
+/* 마인크래프트 스타일 지면 */
 .ground {
   position: absolute;
   bottom: 0;
   width: 100%;
   height: 25%;
-  background-color: #866043;
-  border-top: 15px solid #5b8731;
-  box-shadow: inset 0px 5px 0px rgba(0, 0, 0, 0.2);
+  background: linear-gradient(180deg,
+    #8b5a2b 0%,
+    #7a4a1f 20%,
+    #6d4219 40%,
+    #5c3615 60%,
+    #4a2a10 100%
+  );
+  border-top: 12px solid #5b8731;
+  box-shadow:
+    inset 0 15px 0 -12px #4a7028,
+    inset 0 20px 0 -12px #3d5c21;
+  pointer-events: none;
+}
+
+.ground::before {
+  content: '';
+  position: absolute;
+  top: -12px;
+  left: 0;
+  width: 100%;
+  height: 12px;
+  background: repeating-linear-gradient(90deg,
+    #5b8731 0px,
+    #5b8731 8px,
+    #4a7028 8px,
+    #4a7028 16px,
+    #6b9741 16px,
+    #6b9741 24px,
+    #5b8731 24px,
+    #5b8731 32px
+  );
+}
+
+/* 흙 텍스처 패턴 */
+.ground::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-image:
+    radial-gradient(circle at 10% 20%, rgba(0,0,0,0.1) 2px, transparent 2px),
+    radial-gradient(circle at 30% 60%, rgba(0,0,0,0.08) 3px, transparent 3px),
+    radial-gradient(circle at 50% 30%, rgba(0,0,0,0.1) 2px, transparent 2px),
+    radial-gradient(circle at 70% 70%, rgba(0,0,0,0.08) 2px, transparent 2px),
+    radial-gradient(circle at 90% 40%, rgba(0,0,0,0.1) 3px, transparent 3px);
   pointer-events: none;
 }
 
@@ -176,6 +346,162 @@ body {
     transform: translateY(0) scale(1);
     opacity: 1;
   }
+}
+
+/* Grid Block */
+.grid-block {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+/* 채굴 중인 블록 스타일 */
+.grid-block-mining {
+  cursor: grabbing;
+}
+
+/* 그리드 셀 꽉 채우기 */
+.grid-item-fill {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: fill;
+}
+
+/* 채굴 중에는 hover 효과 비활성화 */
+.grid-block:hover:not(.grid-block-mining) {
+  transform: scale(1.05);
+  filter: brightness(1.1);
+  z-index: 200 !important;
+}
+
+/* 채굴 시 블록 크기 변경 제거 - mouseLeave 문제 방지 */
+
+/* 채굴 진행 중 효과 - 블록이 점점 하얗게 깜빡이며 흔들림 */
+.grid-block-mining {
+  animation: miningPulse 0.3s ease-in-out infinite;
+}
+
+@keyframes miningPulse {
+  0%, 100% {
+    filter: brightness(1);
+    transform: translate(0, 0);
+  }
+  50% {
+    filter: brightness(1.4);
+    transform: translate(-1px, 1px);
+  }
+}
+
+/* 금 단계별 효과 - 점점 더 심하게 */
+.mining-crack {
+  display: none; /* 사용 안함 */
+}
+
+.mining-crack-1 ~ .grid-item-fill,
+.grid-block:has(.mining-crack-1) {
+  animation: miningPulse 0.4s ease-in-out infinite;
+}
+
+.grid-block:has(.mining-crack-2) {
+  animation: miningPulse 0.35s ease-in-out infinite;
+}
+
+.grid-block:has(.mining-crack-3) {
+  animation: miningPulse 0.3s ease-in-out infinite;
+}
+
+.grid-block:has(.mining-crack-4) {
+  animation: miningPulse 0.2s ease-in-out infinite;
+}
+
+.grid-block:has(.mining-crack-5) {
+  animation: miningShake 0.1s ease-in-out infinite;
+}
+
+@keyframes miningShake {
+  0%, 100% {
+    filter: brightness(1.5) saturate(0.5);
+    transform: translate(0, 0) scale(0.98);
+  }
+  25% {
+    transform: translate(-2px, 1px) scale(1);
+  }
+  50% {
+    filter: brightness(1.8) saturate(0.3);
+    transform: translate(2px, -1px) scale(0.98);
+  }
+  75% {
+    transform: translate(-1px, -2px) scale(1);
+  }
+}
+
+.resource-block {
+  animation: resourceGlow 2s ease-in-out infinite;
+}
+
+/* 드롭된 아이템 (바닥에 떠있는 상태) */
+.dropped-item {
+  position: absolute;
+  width: 28px;
+  height: 28px;
+  animation: dropBounce 0.5s ease-out, itemFloat 2s ease-in-out infinite 0.5s;
+  filter: drop-shadow(2px 2px 2px rgba(0,0,0,0.4));
+  cursor: pointer;
+  z-index: 80;
+}
+
+@keyframes dropBounce {
+  0% {
+    transform: translateY(-30px) scale(0.5);
+    opacity: 0;
+  }
+  60% {
+    transform: translateY(5px) scale(1.1);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes itemFloat {
+  0%, 100% {
+    transform: translateY(0) rotate(-5deg);
+  }
+  50% {
+    transform: translateY(-6px) rotate(5deg);
+  }
+}
+
+@keyframes resourceGlow {
+  0%, 100% {
+    filter: brightness(1) drop-shadow(0 0 2px rgba(255, 255, 0, 0.3));
+  }
+  50% {
+    filter: brightness(1.2) drop-shadow(0 0 8px rgba(255, 255, 0, 0.6));
+  }
+}
+
+/* Ghost Block (배치 미리보기) */
+.ghost-block {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  opacity: 0.6;
+}
+
+.ghost-valid {
+  filter: brightness(1.3) drop-shadow(0 0 4px rgba(0, 255, 0, 0.6));
+}
+
+.ghost-invalid {
+  filter: grayscale(0.8) brightness(0.7) drop-shadow(0 0 4px rgba(255, 0, 0, 0.6));
 }
 
 .anim-steve-wrapper {
@@ -231,6 +557,12 @@ body {
 
 .steve-crouching {
   filter: drop-shadow(0 0 4px rgba(100, 100, 255, 0.4));
+}
+
+/* Steve 손에 든 아이템 */
+.steve-held-item {
+  image-rendering: pixelated;
+  filter: drop-shadow(1px 1px 0 rgba(0, 0, 0, 0.3));
 }
 
 .steve-jumping {

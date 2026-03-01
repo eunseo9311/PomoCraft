@@ -46,6 +46,7 @@ interface InventoryModalProps {
   onSlotDoubleClick: (slotIndex: number) => void;
   onDragDistribute: (slotIndices: number[], isRightDrag: boolean) => void;
   onCraftResult: (item: { type: ItemType; count: number }) => void;
+  onSetHeldItem: (item: HeldItem | null) => void;
 }
 
 export function InventoryModal({
@@ -58,6 +59,7 @@ export function InventoryModal({
   onSlotDoubleClick,
   onDragDistribute,
   onCraftResult,
+  onSetHeldItem,
 }: InventoryModalProps) {
   const [craftGrid, setCraftGrid] = useState<InventorySlot[]>(
     Array(4).fill(null).map(() => ({ ...EMPTY_SLOT }))
@@ -71,42 +73,59 @@ export function InventoryModal({
   // 제작 결과 계산
   const craftResult = matchRecipe(craftGrid, 2, RECIPES_2X2);
 
-  // 모달 닫힐 때 제작 그리드 초기화
+  // 모달 열릴 때/닫힐 때 상태 초기화
   useEffect(() => {
     if (!isOpen) {
       setCraftGrid(Array(4).fill(null).map(() => ({ ...EMPTY_SLOT })));
     }
+    // 모달 열릴 때 드래그 상태 초기화
+    setIsDragging(false);
+    setDraggedSlots([]);
   }, [isOpen]);
 
-  // 마우스 업 이벤트 (전역) - 훅은 조건부 return 전에 선언해야 함
+  // 마우스 업 이벤트 (전역) - 드래그 종료 시 배치
   useEffect(() => {
     if (!isOpen) return;
-    if (isDragging) {
-      const handleGlobalMouseUp = () => {
-        if (isDragging && draggedSlots.length > 0) {
-          onDragDistribute(draggedSlots, isRightDrag);
-        }
-        setIsDragging(false);
-        setDraggedSlots([]);
-      };
-      window.addEventListener('mouseup', handleGlobalMouseUp);
-      return () => window.removeEventListener('mouseup', handleGlobalMouseUp);
-    }
+
+    const handleGlobalMouseUp = () => {
+      // 드래그 중이고 여러 슬롯에 걸쳐 드래그한 경우에만 배치
+      if (isDragging && draggedSlots.length > 1) {
+        onDragDistribute(draggedSlots, isRightDrag);
+      }
+      // 드래그 상태 초기화
+      setIsDragging(false);
+      setDraggedSlots([]);
+    };
+
+    window.addEventListener('mouseup', handleGlobalMouseUp);
+    return () => window.removeEventListener('mouseup', handleGlobalMouseUp);
   }, [isOpen, isDragging, draggedSlots, isRightDrag, onDragDistribute]);
 
   // 제작 슬롯 클릭
   const handleCraftSlotClick = (index: number) => {
     if (heldItem) {
       // 들고 있는 아이템을 제작 슬롯에 놓기
-      setCraftGrid(prev => {
-        const newGrid = [...prev];
-        if (!newGrid[index].type) {
-          newGrid[index] = { type: heldItem.type, count: 1 };
-        } else if (newGrid[index].type === heldItem.type) {
-          newGrid[index] = { ...newGrid[index], count: newGrid[index].count + 1 };
+      const currentCraftSlot = craftGrid[index];
+
+      // 빈 슬롯이거나 같은 아이템인 경우에만 놓기
+      if (!currentCraftSlot.type || currentCraftSlot.type === heldItem.type) {
+        setCraftGrid(prev => {
+          const newGrid = [...prev];
+          if (!newGrid[index].type) {
+            newGrid[index] = { type: heldItem.type, count: 1 };
+          } else {
+            newGrid[index] = { ...newGrid[index], count: newGrid[index].count + 1 };
+          }
+          return newGrid;
+        });
+
+        // heldItem 개수 감소
+        if (heldItem.count > 1) {
+          onSetHeldItem({ ...heldItem, count: heldItem.count - 1 });
+        } else {
+          onSetHeldItem(null);
         }
-        return newGrid;
-      });
+      }
     } else if (craftGrid[index].type) {
       // 제작 슬롯에서 아이템 집기 (인벤토리로 돌려보내기)
       const item = craftGrid[index];
