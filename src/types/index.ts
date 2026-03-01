@@ -23,6 +23,7 @@ export interface SteveState {
   isWalking: boolean;  // 걷는 중
   isRunning: boolean;  // 달리는 중
   isJumping: boolean;  // 점프 중
+  isCrouching: boolean; // 웅크리기 중
   walkFrame: number;   // 걷기 애니메이션 프레임
 }
 

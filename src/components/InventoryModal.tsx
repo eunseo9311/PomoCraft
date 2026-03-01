@@ -42,6 +42,8 @@ interface InventoryModalProps {
   onClose: () => void;
   onSlotClick: (slotIndex: number) => void;
   onSlotRightClick: (slotIndex: number) => void;
+  onSlotDoubleClick: (slotIndex: number) => void;
+  onDragDistribute: (slotIndices: number[], isRightDrag: boolean) => void;
   onCraftResult: (item: { type: ItemType; count: number }) => void;
 }
 
@@ -52,11 +54,18 @@ export function InventoryModal({
   onClose,
   onSlotClick,
   onSlotRightClick,
+  onSlotDoubleClick,
+  onDragDistribute,
   onCraftResult,
 }: InventoryModalProps) {
   const [craftGrid, setCraftGrid] = useState<InventorySlot[]>(
     Array(4).fill(null).map(() => ({ ...EMPTY_SLOT }))
   );
+
+  // 드래그 상태
+  const [isDragging, setIsDragging] = useState(false);
+  const [isRightDrag, setIsRightDrag] = useState(false);
+  const [draggedSlots, setDraggedSlots] = useState<number[]>([]);
 
   // 제작 결과 계산
   const craftResult = matchRecipe(craftGrid, 2, RECIPES_2X2);
@@ -124,19 +133,63 @@ export function InventoryModal({
     }
   };
 
+  // 드래그 시작
+  const handleMouseDown = (slotIndex: number, e: React.MouseEvent) => {
+    if (heldItem && (e.button === 0 || e.button === 2)) {
+      setIsDragging(true);
+      setIsRightDrag(e.button === 2);
+      setDraggedSlots([slotIndex]);
+    }
+  };
+
+  // 드래그 중 슬롯 진입
+  const handleMouseEnter = (slotIndex: number) => {
+    if (isDragging && heldItem && !draggedSlots.includes(slotIndex)) {
+      const slot = inventory.slots[slotIndex];
+      // 빈 슬롯이거나 같은 아이템인 경우만 추가
+      if (!slot.type || slot.type === heldItem.type) {
+        setDraggedSlots(prev => [...prev, slotIndex]);
+      }
+    }
+  };
+
+  // 드래그 종료
+  const handleMouseUp = () => {
+    if (isDragging && draggedSlots.length > 0) {
+      onDragDistribute(draggedSlots, isRightDrag);
+    }
+    setIsDragging(false);
+    setDraggedSlots([]);
+  };
+
+  // 마우스 업 이벤트 (전역)
+  useEffect(() => {
+    if (isDragging) {
+      const handleGlobalMouseUp = () => handleMouseUp();
+      window.addEventListener('mouseup', handleGlobalMouseUp);
+      return () => window.removeEventListener('mouseup', handleGlobalMouseUp);
+    }
+  }, [isDragging, draggedSlots]);
+
   const renderSlot = (slotIndex: number, isHotbar = false) => {
     const slot = inventory.slots[slotIndex];
     const isSelected = isHotbar && inventory.hotbar === slotIndex;
-    const slotClass = "inv-slot" + (isSelected ? " inv-slot-selected" : "");
+    const isDragTarget = draggedSlots.includes(slotIndex);
+    const slotClass = "inv-slot" + (isSelected ? " inv-slot-selected" : "") + (isDragTarget ? " inv-slot-dragging" : "");
 
     return (
       <div
         key={slotIndex}
         className={slotClass}
         onClick={() => onSlotClick(slotIndex)}
+        onDoubleClick={() => onSlotDoubleClick(slotIndex)}
+        onMouseDown={(e) => handleMouseDown(slotIndex, e)}
+        onMouseEnter={() => handleMouseEnter(slotIndex)}
         onContextMenu={(e) => {
           e.preventDefault();
-          onSlotRightClick(slotIndex);
+          if (!isDragging) {
+            onSlotRightClick(slotIndex);
+          }
         }}
       >
         {slot.type && (

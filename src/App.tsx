@@ -15,6 +15,7 @@ import {
 // Steve 물리 상수
 const STEVE_SPEED = 0.8;        // 기본 이동 속도 (%/frame)
 const STEVE_RUN_SPEED = 1.6;   // 달리기 속도
+const STEVE_CROUCH_SPEED = 0.3; // 웅크리기 속도
 const JUMP_VELOCITY = 12;      // 점프 초기 속도
 const GRAVITY = 0.8;           // 중력
 const GROUND_Y = 0;            // 땅 높이
@@ -34,6 +35,7 @@ function App() {
     isWalking: false,
     isRunning: false,
     isJumping: false,
+    isCrouching: false,
     walkFrame: 0,
   });
 
@@ -68,7 +70,39 @@ function App() {
     localStorage.setItem(INVENTORY_STORAGE_KEY, JSON.stringify(playerInventory));
   }, [playerInventory]);
 
-  // E키, ESC키, 숫자키 처리
+  // 아이템 버리기 함수
+  const dropItem = useCallback((dropAll: boolean) => {
+    const currentSlot = playerInventory.slots[playerInventory.hotbar];
+    if (!currentSlot.type || currentSlot.count <= 0) return;
+
+    const dropCount = dropAll ? currentSlot.count : 1;
+
+    // 월드에 아이템 드롭 (Steve 위치 근처)
+    const droppedItem = {
+      id: Date.now() + Math.random(),
+      type: currentSlot.type as EntityType,
+      x: steveState.x + (steveState.facingRight ? 5 : -5),
+      bottom: 15 + Math.random() * 5,
+      size: 32,
+      flip: false,
+    };
+    setWorldDecorations(prev => [...prev, droppedItem]);
+
+    // 인벤토리에서 제거
+    setPlayerInventory(prev => {
+      const newSlots = [...prev.slots];
+      if (dropAll || currentSlot.count <= 1) {
+        newSlots[prev.hotbar] = { ...EMPTY_SLOT };
+      } else {
+        newSlots[prev.hotbar] = { ...currentSlot, count: currentSlot.count - 1 };
+      }
+      return { ...prev, slots: newSlots };
+    });
+
+    addToast('아이템 버림', `${currentSlot.type} x${dropCount}`, currentSlot.type, '#AAAAAA');
+  }, [playerInventory, steveState, setWorldDecorations, addToast]);
+
+  // E키, ESC키, 숫자키, Q키, F키 처리
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // E키: 인벤토리 토글
@@ -78,22 +112,45 @@ function App() {
         if (heldItem) setHeldItem(null); // 인벤토리 닫을 때 들고 있는 아이템 드롭
       }
 
-      // ESC키: 인벤토리 닫기
-      if (e.key === 'Escape' && isInventoryOpen) {
-        setIsInventoryOpen(false);
-        if (heldItem) setHeldItem(null);
+      // ESC키: 인벤토리/제작대 닫기
+      if (e.key === 'Escape') {
+        if (isCraftingTableOpen) {
+          setIsCraftingTableOpen(false);
+        } else if (isInventoryOpen) {
+          setIsInventoryOpen(false);
+          if (heldItem) setHeldItem(null);
+        }
       }
 
       // 숫자키 1-9: 핫바 슬롯 선택
-      if (!isInventoryOpen && e.key >= '1' && e.key <= '9') {
+      if (!isInventoryOpen && !isCraftingTableOpen && e.key >= '1' && e.key <= '9') {
         const slotIndex = parseInt(e.key) - 1;
         setPlayerInventory(prev => ({ ...prev, hotbar: slotIndex }));
+      }
+
+      // Q키: 아이템 버리기
+      if ((e.key === 'q' || e.key === 'Q' || e.key === 'ㅂ') && !isInventoryOpen && !isCraftingTableOpen) {
+        e.preventDefault();
+        dropItem(e.ctrlKey); // Ctrl+Q면 전부 버리기
+      }
+
+      // F키: 양손 교체 (현재는 핫바 첫번째 슬롯과 현재 슬롯 교체로 구현)
+      if ((e.key === 'f' || e.key === 'F' || e.key === 'ㄹ') && !isInventoryOpen && !isCraftingTableOpen) {
+        e.preventDefault();
+        setPlayerInventory(prev => {
+          if (prev.hotbar === 0) return prev; // 이미 첫번째 슬롯이면 무시
+          const newSlots = [...prev.slots];
+          const temp = newSlots[0];
+          newSlots[0] = newSlots[prev.hotbar];
+          newSlots[prev.hotbar] = temp;
+          return { ...prev, slots: newSlots };
+        });
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isInventoryOpen, heldItem]);
+  }, [isInventoryOpen, isCraftingTableOpen, heldItem, dropItem]);
 
   // 마우스 휠로 핫바 슬롯 변경
   useEffect(() => {
@@ -118,7 +175,7 @@ function App() {
     return () => window.removeEventListener('wheel', handleWheel);
   }, [isInventoryOpen, isCraftingTableOpen]);
 
-  // WASD 이동 + 점프 키 핸들러
+  // WASD 이동 + 점프 + Ctrl(달리기) + Shift(웅크리기) 키 핸들러
   useEffect(() => {
     if (isInventoryOpen || isCraftingTableOpen) return;
 
@@ -133,6 +190,16 @@ function App() {
           setSteveState(prev => ({ ...prev, isRunning: true }));
         }
         lastWPress.current = now;
+      }
+
+      // Ctrl: 달리기 유지
+      if (key === 'control') {
+        setSteveState(prev => ({ ...prev, isRunning: true }));
+      }
+
+      // Shift: 웅크리기
+      if (key === 'shift') {
+        setSteveState(prev => ({ ...prev, isCrouching: true, isRunning: false }));
       }
 
       // 스페이스바: 점프
@@ -152,9 +219,19 @@ function App() {
       const key = e.key.toLowerCase();
       keysPressed.current.delete(key);
 
-      // W 떼면 달리기 중지
-      if (key === 'w' || key === 'ㅈ') {
+      // W 떼면 달리기 중지 (Ctrl 안 누르고 있으면)
+      if ((key === 'w' || key === 'ㅈ') && !keysPressed.current.has('control')) {
         setSteveState(prev => ({ ...prev, isRunning: false }));
+      }
+
+      // Ctrl 떼면 달리기 중지
+      if (key === 'control') {
+        setSteveState(prev => ({ ...prev, isRunning: false }));
+      }
+
+      // Shift 떼면 웅크리기 해제
+      if (key === 'shift') {
+        setSteveState(prev => ({ ...prev, isCrouching: false }));
       }
     };
 
@@ -172,15 +249,21 @@ function App() {
 
     const gameLoop = setInterval(() => {
       setSteveState(prev => {
-        let { x, y, velocityY, facingRight, isWalking, isRunning, isJumping, walkFrame } = prev;
+        let { x, y, velocityY, facingRight, isWalking, isRunning, isJumping, isCrouching, walkFrame } = prev;
 
         // 이동 입력 처리
         const moveLeft = keysPressed.current.has('a') || keysPressed.current.has('ㅁ');
         const moveRight = keysPressed.current.has('d') || keysPressed.current.has('ㅇ');
         const moveForward = keysPressed.current.has('w') || keysPressed.current.has('ㅈ');
+        const moveBackward = keysPressed.current.has('s') || keysPressed.current.has('ㄴ');
 
-        // 현재 이동 속도 계산
-        const speed = isRunning ? STEVE_RUN_SPEED : STEVE_SPEED;
+        // 현재 이동 속도 계산 (웅크리기 > 달리기 > 기본)
+        let speed = STEVE_SPEED;
+        if (isCrouching) {
+          speed = STEVE_CROUCH_SPEED;
+        } else if (isRunning) {
+          speed = STEVE_RUN_SPEED;
+        }
 
         // 이동 처리
         if (moveLeft) {
@@ -199,6 +282,14 @@ function App() {
             x = Math.max(2, x - speed);
           }
           isWalking = true;
+        } else if (moveBackward) {
+          // S키: 뒤로 이동 (바라보는 반대 방향)
+          if (facingRight) {
+            x = Math.max(2, x - speed * 0.7); // 후진은 더 느림
+          } else {
+            x = Math.min(95, x + speed * 0.7);
+          }
+          isWalking = true;
         } else {
           isWalking = false;
         }
@@ -214,14 +305,15 @@ function App() {
           }
         }
 
-        // 걷기 애니메이션 프레임
+        // 걷기 애니메이션 프레임 (웅크리기 시 더 느리게)
         if (isWalking) {
-          walkFrame = (walkFrame + 1) % 12; // 3프레임 x 4 (속도 조절)
+          const animSpeed = isCrouching ? 6 : 4;
+          walkFrame = (walkFrame + 1) % (3 * animSpeed);
         } else {
           walkFrame = 0;
         }
 
-        return { x, y, velocityY, facingRight, isWalking, isRunning, isJumping, walkFrame };
+        return { x, y, velocityY, facingRight, isWalking, isRunning, isJumping, isCrouching, walkFrame };
       });
     }, 1000 / 60); // 60 FPS
 
@@ -319,6 +411,100 @@ function App() {
             }
           }
         }
+      }
+
+      return { ...prev, slots: newSlots };
+    });
+  }, [heldItem]);
+
+  // 더블클릭: 같은 아이템 모두 모으기
+  const handleSlotDoubleClick = useCallback((slotIndex: number) => {
+    const clickedSlot = playerInventory.slots[slotIndex];
+    if (!clickedSlot.type) return;
+
+    const itemType = clickedSlot.type;
+    const maxStack = MAX_STACK[itemType] || 64;
+    let totalCount = clickedSlot.count;
+
+    setPlayerInventory(prev => {
+      const newSlots = [...prev.slots];
+
+      // 다른 슬롯에서 같은 아이템 모으기
+      for (let i = 0; i < newSlots.length && totalCount < maxStack; i++) {
+        if (i !== slotIndex && newSlots[i].type === itemType) {
+          const canTake = Math.min(newSlots[i].count, maxStack - totalCount);
+          totalCount += canTake;
+          if (canTake >= newSlots[i].count) {
+            newSlots[i] = { ...EMPTY_SLOT };
+          } else {
+            newSlots[i] = { ...newSlots[i], count: newSlots[i].count - canTake };
+          }
+        }
+      }
+
+      newSlots[slotIndex] = { type: itemType, count: totalCount };
+      return { ...prev, slots: newSlots };
+    });
+  }, [playerInventory]);
+
+  // 드래그 배치: 왼쪽 드래그 = 균등 배치, 오른쪽 드래그 = 1개씩 배치
+  const handleDragDistribute = useCallback((slotIndices: number[], isRightDrag: boolean) => {
+    if (!heldItem || slotIndices.length === 0) return;
+
+    setPlayerInventory(prev => {
+      const newSlots = [...prev.slots];
+      let remainingCount = heldItem.count;
+
+      if (isRightDrag) {
+        // 오른쪽 드래그: 각 슬롯에 1개씩
+        for (const idx of slotIndices) {
+          if (remainingCount <= 0) break;
+          const slot = newSlots[idx];
+          const maxStack = MAX_STACK[heldItem.type] || 64;
+
+          if (!slot.type) {
+            newSlots[idx] = { type: heldItem.type, count: 1 };
+            remainingCount--;
+          } else if (slot.type === heldItem.type && slot.count < maxStack) {
+            newSlots[idx] = { ...slot, count: slot.count + 1 };
+            remainingCount--;
+          }
+        }
+      } else {
+        // 왼쪽 드래그: 균등 배치
+        const validSlots = slotIndices.filter(idx => {
+          const slot = newSlots[idx];
+          return !slot.type || slot.type === heldItem.type;
+        });
+
+        if (validSlots.length > 0) {
+          const perSlot = Math.floor(heldItem.count / validSlots.length);
+          let extra = heldItem.count % validSlots.length;
+
+          for (const idx of validSlots) {
+            const slot = newSlots[idx];
+            const maxStack = MAX_STACK[heldItem.type] || 64;
+            let toAdd = perSlot + (extra > 0 ? 1 : 0);
+            if (extra > 0) extra--;
+
+            if (!slot.type) {
+              const actual = Math.min(toAdd, maxStack);
+              newSlots[idx] = { type: heldItem.type, count: actual };
+              remainingCount -= actual;
+            } else if (slot.type === heldItem.type) {
+              const canAdd = Math.min(toAdd, maxStack - slot.count);
+              newSlots[idx] = { ...slot, count: slot.count + canAdd };
+              remainingCount -= canAdd;
+            }
+          }
+        }
+      }
+
+      // 남은 아이템 처리
+      if (remainingCount > 0) {
+        setHeldItem({ ...heldItem, count: remainingCount });
+      } else {
+        setHeldItem(null);
       }
 
       return { ...prev, slots: newSlots };
@@ -700,6 +886,8 @@ function App() {
         }}
         onSlotClick={handleSlotClick}
         onSlotRightClick={handleSlotRightClick}
+        onSlotDoubleClick={handleSlotDoubleClick}
+        onDragDistribute={handleDragDistribute}
         onCraftResult={handleCraftResult}
       />
 

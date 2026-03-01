@@ -144,20 +144,21 @@ export function WorldView({
 
       {/* Steve 캐릭터 */}
       <div
-        className={`steve-character ${steveState.isRunning ? 'steve-running' : ''}`}
+        className={`steve-character ${steveState.isRunning ? 'steve-running' : ''} ${steveState.isCrouching ? 'steve-crouching' : ''}`}
         style={{
           position: 'absolute',
           bottom: `calc(22% + ${steveState.y}px)`,
           left: `${steveState.x}%`,
           zIndex: 78,
           pointerEvents: 'none',
-          transform: steveState.facingRight ? 'none' : 'scaleX(-1)',
+          transform: `${steveState.facingRight ? '' : 'scaleX(-1)'} ${steveState.isCrouching ? 'scaleY(0.85) translateY(7px)' : ''}`,
           transition: 'transform 0.1s',
         }}
       >
         {(() => {
           // 스프라이트 선택 로직
           let spriteName: SpriteType = 'steve_stand';
+          const animSpeed = steveState.isCrouching ? 6 : 4;
 
           if (steveState.isJumping) {
             spriteName = 'steve_jump';
@@ -171,7 +172,7 @@ export function WorldView({
             );
           } else if (steveState.isWalking) {
             // 걷기 애니메이션 (3프레임 순환)
-            const walkFrameIndex = Math.floor(steveState.walkFrame / 4) % 3;
+            const walkFrameIndex = Math.floor(steveState.walkFrame / animSpeed) % 3;
             const walkSprites: SpriteType[] = ['steve_walk_1', 'steve_walk_2', 'steve_walk_3'];
             spriteName = walkSprites[walkFrameIndex];
           }

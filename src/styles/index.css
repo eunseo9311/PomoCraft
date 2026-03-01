@@ -229,6 +229,10 @@ body {
   filter: drop-shadow(0 0 8px rgba(255, 200, 100, 0.6));
 }
 
+.steve-crouching {
+  filter: drop-shadow(0 0 4px rgba(100, 100, 255, 0.4));
+}
+
 .steve-jumping {
   animation: jump-bounce 0.3s ease-out;
 }
@@ -510,6 +514,11 @@ body {
 .inv-slot-selected {
   border-color: #ffff00 #aaaa00 #aaaa00 #ffff00;
   box-shadow: 0 0 5px #ffff00;
+}
+
+.inv-slot-dragging {
+  background-color: #aaccff;
+  border-color: #6699ff #3366cc #3366cc #6699ff;
 }
 
 .inv-slot-count {
