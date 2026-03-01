@@ -48,6 +48,7 @@ export const ITEMS: Record<string, ItemData> = {
   'rose': { id: 'rose', name: 'Rose', image: 'blocks/rose.png', maxStack: 64 },
   'leaves': { id: 'leaves', name: 'Leaves', image: 'blocks/leaves.png', maxStack: 64 },
   'grass': { id: 'grass', name: 'Grass Block', image: 'blocks/grass_side.png', maxStack: 64 },
+  'grass_side': { id: 'grass_side', name: 'Grass Block', image: 'blocks/grass_side.png', maxStack: 64 },
   'snow': { id: 'snow', name: 'Snow', image: 'blocks/snow.png', maxStack: 64 },
   'ice': { id: 'ice', name: 'Ice', image: 'blocks/ice.png', maxStack: 64 },
   'clay': { id: 'clay', name: 'Clay Block', image: 'blocks/clay.png', maxStack: 64 },

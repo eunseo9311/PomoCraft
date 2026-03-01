@@ -269,61 +269,43 @@ body {
   animation-play-state: paused;
 }
 
-/* 마인크래프트 스타일 지면 */
-.ground {
+/* 마인크래프트 스타일 땅 블록 */
+.ground-blocks {
   position: absolute;
   bottom: 0;
+  left: 0;
   width: 100%;
   height: 25%;
-  background: linear-gradient(180deg,
-    #8b5a2b 0%,
-    #7a4a1f 20%,
-    #6d4219 40%,
-    #5c3615 60%,
-    #4a2a10 100%
-  );
-  border-top: 12px solid #5b8731;
-  box-shadow:
-    inset 0 15px 0 -12px #4a7028,
-    inset 0 20px 0 -12px #3d5c21;
+  z-index: 1;
+}
+
+.ground-block {
+  position: absolute;
+  width: 5.2%;
+  height: 26%;
+  image-rendering: pixelated;
+  object-fit: fill;
   pointer-events: none;
 }
 
-.ground::before {
-  content: '';
-  position: absolute;
-  top: -12px;
-  left: 0;
-  width: 100%;
-  height: 12px;
-  background: repeating-linear-gradient(90deg,
-    #5b8731 0px,
-    #5b8731 8px,
-    #4a7028 8px,
-    #4a7028 16px,
-    #6b9741 16px,
-    #6b9741 24px,
-    #5b8731 24px,
-    #5b8731 32px
-  );
+.ground-block-mineable {
+  pointer-events: auto;
+  cursor: pointer;
 }
 
-/* 흙 텍스처 패턴 */
-.ground::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background-image:
-    radial-gradient(circle at 10% 20%, rgba(0,0,0,0.1) 2px, transparent 2px),
-    radial-gradient(circle at 30% 60%, rgba(0,0,0,0.08) 3px, transparent 3px),
-    radial-gradient(circle at 50% 30%, rgba(0,0,0,0.1) 2px, transparent 2px),
-    radial-gradient(circle at 70% 70%, rgba(0,0,0,0.08) 2px, transparent 2px),
-    radial-gradient(circle at 90% 40%, rgba(0,0,0,0.1) 3px, transparent 3px);
-  pointer-events: none;
+.ground-block-mining {
+  animation: miningPulse 0.3s ease-in-out infinite;
 }
+
+.ground-block-empty {
+  position: absolute;
+  width: 5.2%;
+  height: 26%;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+
 
 /* Draggable entity */
 .entity {

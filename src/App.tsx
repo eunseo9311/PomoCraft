@@ -22,7 +22,7 @@ const GRAVITY = 0.08;          // 중력 (%/frame²)
 const GROUND_Y = 0;            // 기본 땅 높이 (%)
 
 // 충돌 상수 (Grid 기반)
-const STEP_UP_HEIGHT = GRID.TILE_H;  // 한 칸 높이(6%)까지 자동 오르기
+const STEP_UP_HEIGHT = 6.5;  // 한 칸 높이(6.25%)까지 자동 오르기 (여유분 포함)
 
 // 자원 채집 상수
 const BLOCK_MOVE_INTERVAL = 12000;      // 블록 위치 변경 간격 (ms) - 12초
@@ -117,6 +117,15 @@ function App() {
   const droppedItemIdRef = useRef(0);
   const miningIntervalRef = useRef<number | null>(null);
 
+  // 땅 블록 상태 (4줄 x 21열, row 0=잔디, row 1-3=흙)
+  const [groundBlocks, setGroundBlocks] = useState<(string | null)[][]>(() => {
+    const blocks: (string | null)[][] = [];
+    for (let row = 0; row < 4; row++) {
+      blocks.push(Array(21).fill(row === 0 ? 'grass_side' : 'dirt'));
+    }
+    return blocks;
+  });
+
   // Ref로 최신 상태 추적 (useCallback 클로저 문제 해결)
   const heldItemRef = useRef<HeldItem | null>(null);
   const inventoryRef = useRef<PlayerInventory>(playerInventory);
@@ -139,7 +148,7 @@ function App() {
     return percentToGrid(steveState.x, steveBottomPercent);
   }, [steveState.x, steveState.y]);
 
-  // 지면 높이 계산 함수 (Grid 기반)
+  // 지면 높이 계산 함수 (Grid 기반 + 땅 블록 체크)
   const getGroundHeightAt = useCallback((xPos: number): number => {
     const col = Math.floor(xPos / GRID.TILE_W);
     if (col < 0 || col >= GRID.COLS) return GROUND_Y;
@@ -152,8 +161,18 @@ function App() {
       }
     }
 
+    // 땅 블록 체크 (채굴된 경우 음수 높이 반환)
+    const groundCol = Math.floor(xPos / 5); // 땅 블록은 5% 간격
+    if (groundCol >= 0 && groundCol < 21) {
+      for (let row = 0; row < 4; row++) {
+        if (groundBlocks[row]?.[groundCol] !== null) {
+          return -row * 6.25;
+        }
+      }
+    }
+
     return GROUND_Y;
-  }, [worldGrid]);
+  }, [worldGrid, groundBlocks]);
 
   // 플레이어 인벤토리 저장
   useEffect(() => {
@@ -463,7 +482,7 @@ function App() {
               x = newX;
             }
           } else {
-            // 땅에 있을 때만 자동 계단 오르기
+            // 땅에 있을 때 자동 계단 오르기/내려가기
             if (heightDiff > 0 && heightDiff <= STEP_UP_HEIGHT) {
               // 1칸 높이까지 자동 올라가기
               x = newX;
@@ -472,8 +491,9 @@ function App() {
               // 너무 높은 블록: 막힘 (이동 불가)
               isWalking = false;
             } else {
-              // 평지 또는 내려가기
+              // 평지 또는 내려가기 - y도 즉시 업데이트
               x = newX;
+              y = newGroundHeight;
             }
           }
         }
@@ -488,15 +508,13 @@ function App() {
 
           // 지면 충돌 체크
           if (newY <= groundHeight) {
-            // 착지 가능 조건: Steve가 블록 위에서 떨어지는 경우 (y >= groundHeight)
-            // Steve가 블록보다 낮으면 (y < groundHeight) 블록 옆면에 막힘
             if (y >= groundHeight) {
               // 위에서 떨어지는 경우 - 정상 착지
               y = groundHeight;
               velocityY = 0;
               isJumping = false;
             } else {
-              // 블록보다 낮은 위치에서 충돌 - 통과 불가, 계속 떨어짐
+              // 블록보다 낮은 위치에서 충돌
               y = newY;
             }
           } else {
@@ -778,6 +796,34 @@ function App() {
     });
   }, [playerInventory, worldGrid, getSteveGridPos, updateCell]);
 
+  // 땅 블록 배치 (파인 구멍에 블록 채우기)
+  const handleGroundBlockPlace = useCallback((col: number, row: number) => {
+    const selectedSlot = playerInventory.slots[playerInventory.hotbar];
+    if (!selectedSlot.type || selectedSlot.count <= 0) return;
+
+    // 해당 위치에 이미 블록이 있으면 무시
+    if (groundBlocks[row]?.[col] !== null) return;
+
+    // 블록 배치
+    setGroundBlocks(prev => {
+      const newBlocks = prev.map(r => [...r]);
+      newBlocks[row][col] = selectedSlot.type;
+      return newBlocks;
+    });
+
+    // 인벤토리에서 아이템 감소
+    setPlayerInventory(prev => {
+      const newSlots = [...prev.slots];
+      const slot = newSlots[prev.hotbar];
+      if (slot.count > 1) {
+        newSlots[prev.hotbar] = { ...slot, count: slot.count - 1 };
+      } else {
+        newSlots[prev.hotbar] = { type: null, count: 0 };
+      }
+      return { ...prev, slots: newSlots };
+    });
+  }, [playerInventory, groundBlocks]);
+
   // Grid 셀 우클릭 (상호작용)
   const handleCellRightClick = useCallback((col: number, row: number) => {
     const cell = worldGrid[row]?.[col];
@@ -1009,6 +1055,58 @@ function App() {
     }, 100);
   }, [worldGrid, updateCell]);
 
+  // 땅 블록 채굴 시작
+  const handleGroundMiningStart = useCallback((col: number, row: number) => {
+    // 맨 아래 줄(row 3)은 채굴 불가
+    if (row >= 3) return;
+
+    const blockType = groundBlocks[row]?.[col];
+    if (!blockType) return;
+
+    // 이미 채굴 중이면 무시
+    if (miningIntervalRef.current) {
+      return;
+    }
+
+    const startTime = Date.now();
+    // 땅 블록은 row를 음수로 표시해서 구분 (row 0 -> -1, row 1 -> -2, etc.)
+    setMiningState({ col, row: -(row + 1), progress: 0, startTime });
+
+    // 채굴 진행 인터벌 시작
+    miningIntervalRef.current = window.setInterval(() => {
+      const elapsed = Date.now() - startTime;
+      const progress = Math.min((elapsed / MINING_TIME) * 100, 100);
+
+      if (progress >= 100) {
+        // 채굴 완료 - 땅 블록 제거
+        setGroundBlocks(prev => {
+          const newBlocks = prev.map(r => [...r]);
+          newBlocks[row][col] = null;
+          return newBlocks;
+        });
+
+        // 드롭 아이템 생성 (캔 블록 그대로 드롭)
+        const dropX = col * 5 + 2.5;
+        const newDroppedItem: DroppedItem = {
+          id: ++droppedItemIdRef.current,
+          type: blockType,
+          x: dropX,
+          y: 2,
+        };
+        setDroppedItems(prev => [...prev, newDroppedItem]);
+
+        // 인터벌 정리
+        if (miningIntervalRef.current) {
+          clearInterval(miningIntervalRef.current);
+          miningIntervalRef.current = null;
+        }
+        setMiningState(null);
+      } else {
+        setMiningState({ col, row: -(row + 1), progress, startTime });
+      }
+    }, 100);
+  }, [groundBlocks]);
+
   // 전역 마우스업으로 채굴 취소
   useEffect(() => {
     const handleGlobalMouseUp = () => {
@@ -1068,15 +1166,79 @@ function App() {
       return newGrid;
     });
 
-    // 집중 시간에 따른 토스트 표시
-    if (minFocused >= 1 && minFocused < 15) {
-      addToast('발전 과제 달성!', '성공적인 집중의 시작', 'steve_stand', '#55FF55');
-    }
-    if (minFocused >= 15 && minFocused < 25) {
-      addToast('목표 달성!', '시간은 금이다', 'steve_stand', '#FFFF55');
-    }
-    if (minFocused >= 25) {
-      addToast('도전 완료!', '도를 넘은 전념', 'steve_stand', '#FF55FF');
+    // 발전 과제 메시지 정의
+    const achievements = {
+      // 1-5분: 시작 단계
+      starter: [
+        { title: '발전 과제 달성!', desc: '성공적인 집중의 시작', icon: 'steve_stand', color: '#55FF55' },
+        { title: '첫 발걸음!', desc: '천 리 길도 한 걸음부터', icon: 'wooden_pickaxe', color: '#55FF55' },
+        { title: '워밍업 완료!', desc: '몸풀기는 끝났다', icon: 'coal', color: '#AAAAAA' },
+      ],
+      // 5-15분: 초반
+      early: [
+        { title: '집중 모드!', desc: '흐름을 타기 시작했다', icon: 'iron_pickaxe', color: '#55FFFF' },
+        { title: '꾸준함의 힘!', desc: '작은 노력이 쌓인다', icon: 'cobblestone', color: '#AAAAAA' },
+        { title: '채굴 시작!', desc: '다이아몬드를 향해', icon: 'stone_pickaxe', color: '#55FFFF' },
+        { title: '불씨를 지피다', desc: '화로에 불이 붙었다', icon: 'coal', color: '#FF5555' },
+      ],
+      // 15-25분: 중반
+      mid: [
+        { title: '목표 달성!', desc: '시간은 금이다', icon: 'gold_ingot', color: '#FFFF55' },
+        { title: '장인의 길!', desc: '숙련도가 상승했다', icon: 'iron_ingot', color: '#FFFFFF' },
+        { title: '광맥 발견!', desc: '노력이 빛을 발하다', icon: 'diamond', color: '#55FFFF' },
+        { title: '용광로 가동!', desc: '생산성 최대 출력', icon: 'iron_ingot', color: '#FFAA00' },
+        { title: '네더 도달!', desc: '차원이 다른 집중력', icon: 'obsidian', color: '#5555FF' },
+      ],
+      // 25-45분: 후반
+      late: [
+        { title: '도전 완료!', desc: '도를 넘은 전념', icon: 'diamond', color: '#FF55FF' },
+        { title: '엔더 드래곤!', desc: '최종 보스를 향해', icon: 'diamond_sword', color: '#FF55FF' },
+        { title: '전설의 시작!', desc: '역사에 남을 집중', icon: 'emerald', color: '#55FF55' },
+        { title: '마스터 등급!', desc: '집중력의 정점', icon: 'diamond_pickaxe', color: '#55FFFF' },
+        { title: '비콘 활성화!', desc: '영역 전체에 버프 적용', icon: 'emerald', color: '#FFFF55' },
+      ],
+      // 45분+: 전설
+      legendary: [
+        { title: '하드코어 클리어!', desc: '불가능을 가능으로', icon: 'nether_star', color: '#FF55FF' },
+        { title: '위더 처치!', desc: '한계를 초월하다', icon: 'nether_star', color: '#5555FF' },
+        { title: '올 어드밴스먼트!', desc: '모든 발전과제 달성', icon: 'diamond_block', color: '#55FFFF' },
+        { title: '스피드런 실패?', desc: '너무 오래 했잖아!', icon: 'clock', color: '#FFAA00' },
+      ],
+      // 랜덤 이벤트 (어느 시간대든 낮은 확률로)
+      random: [
+        { title: '크리퍼 회피!', desc: '쉬쉬쉬... 휴, 살았다', icon: 'gunpowder', color: '#55FF55' },
+        { title: '행운 인챈트!', desc: '오늘 운이 좋군', icon: 'emerald', color: '#55FF55' },
+        { title: '마을 발견!', desc: '거래할 준비 완료', icon: 'emerald', color: '#FFAA00' },
+        { title: '던전 클리어!', desc: '몬스터 스포너 파괴', icon: 'bone', color: '#AAAAAA' },
+        { title: '낚시의 달인!', desc: '인내심의 보상', icon: 'fishing_rod', color: '#55FFFF' },
+        { title: '양털 수집가!', desc: '무지개 양을 찾아서', icon: 'white_wool', color: '#FFFFFF' },
+        { title: '레드스톤 공학!', desc: '회로가 작동한다', icon: 'redstone', color: '#FF5555' },
+        { title: '이것은 케이크!', desc: '거짓말이 아니에요', icon: 'cake', color: '#FF55FF' },
+      ],
+    };
+
+    // 시간대별 발전과제 선택
+    const pickRandom = <T,>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
+
+    // 10% 확률로 랜덤 이벤트
+    if (Math.random() < 0.1) {
+      const achievement = pickRandom(achievements.random);
+      addToast(achievement.title, achievement.desc, achievement.icon, achievement.color);
+    } else if (minFocused >= 45) {
+      const achievement = pickRandom(achievements.legendary);
+      addToast(achievement.title, achievement.desc, achievement.icon, achievement.color);
+    } else if (minFocused >= 25) {
+      const achievement = pickRandom(achievements.late);
+      addToast(achievement.title, achievement.desc, achievement.icon, achievement.color);
+    } else if (minFocused >= 15) {
+      const achievement = pickRandom(achievements.mid);
+      addToast(achievement.title, achievement.desc, achievement.icon, achievement.color);
+    } else if (minFocused >= 5) {
+      const achievement = pickRandom(achievements.early);
+      addToast(achievement.title, achievement.desc, achievement.icon, achievement.color);
+    } else if (minFocused >= 1) {
+      const achievement = pickRandom(achievements.starter);
+      addToast(achievement.title, achievement.desc, achievement.icon, achievement.color);
     }
   }, [initialTime, timeLeft, setWorldGrid, addToast]);
 
@@ -1101,6 +1263,29 @@ function App() {
       return;
     }
 
+    // 땅 영역 체크 (bottomPercent < 25%)
+    if (bottomPercent < 25) {
+      const groundCol = Math.floor(xPercent / 5);
+      // 4줄 중 어느 줄인지 계산 (row 0 = 맨 위, row 3 = 맨 아래)
+      const groundRowPercent = bottomPercent / 25 * 100; // 0~100% within ground area
+      const groundRow = 3 - Math.floor(groundRowPercent / 25);
+
+      if (groundCol >= 0 && groundCol < 21 && groundRow >= 0 && groundRow < 4) {
+        // 빈 땅 칸이면 ghost block 표시
+        if (groundBlocks[groundRow]?.[groundCol] === null) {
+          setGhostBlock({
+            col: groundCol,
+            row: -(groundRow + 1), // 음수로 땅 블록 표시
+            type: selectedSlot.type,
+            isValid: true,
+          });
+          return;
+        }
+      }
+      setGhostBlock(null);
+      return;
+    }
+
     const { col, row } = percentToGrid(xPercent, bottomPercent);
 
     // 이미 블록이 있는 셀에서는 ghost block 표시 안함
@@ -1118,7 +1303,7 @@ function App() {
       type: selectedSlot.type,
       isValid,
     });
-  }, [playerInventory, worldGrid, getSteveGridPos]);
+  }, [playerInventory, worldGrid, groundBlocks, getSteveGridPos]);
 
   // 마우스가 월드 밖으로 나가면 Ghost Block 제거
   const handleMouseLeave = useCallback(() => {
@@ -1152,6 +1337,7 @@ function App() {
 
       <WorldView
         worldGrid={worldGrid}
+        groundBlocks={groundBlocks}
         ghostBlock={isInventoryOpen || miningState ? null : ghostBlock}
         mode={mode}
         isNight={isNight}
@@ -1165,6 +1351,8 @@ function App() {
         onMouseLeave={isInventoryOpen ? () => {} : handleMouseLeave}
         onCellRightClick={isInventoryOpen ? () => {} : handleCellRightClick}
         onCellMouseDown={isInventoryOpen ? () => {} : handleMiningStart}
+        onGroundMouseDown={isInventoryOpen ? () => {} : handleGroundMiningStart}
+        onGroundBlockPlace={isInventoryOpen ? () => {} : handleGroundBlockPlace}
       />
 
       {/* 핫바 UI */}

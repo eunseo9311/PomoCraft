@@ -6,6 +6,7 @@ import { ItemSprite } from './ItemSprite';
 
 interface WorldViewProps {
   worldGrid: WorldGrid;
+  groundBlocks: (string | null)[][];
   ghostBlock: GhostBlock | null;
   mode: TimerMode;
   isNight: boolean;
@@ -19,10 +20,13 @@ interface WorldViewProps {
   onMouseLeave: () => void;
   onCellRightClick: (col: number, row: number) => void;
   onCellMouseDown: (col: number, row: number) => void;
+  onGroundMouseDown: (col: number, row: number) => void;
+  onGroundBlockPlace: (col: number, row: number) => void;
 }
 
 export function WorldView({
   worldGrid,
+  groundBlocks,
   ghostBlock,
   mode,
   isNight,
@@ -36,6 +40,8 @@ export function WorldView({
   onMouseLeave,
   onCellRightClick,
   onCellMouseDown,
+  onGroundMouseDown,
+  onGroundBlockPlace,
 }: WorldViewProps) {
   const worldRef = useRef<HTMLDivElement>(null);
 
@@ -152,6 +158,26 @@ export function WorldView({
   const renderGhostBlock = () => {
     if (!ghostBlock) return null;
 
+    // 땅 블록 위치 (음수 row)
+    if (ghostBlock.row < 0) {
+      const groundRow = -(ghostBlock.row + 1); // -1 -> 0, -2 -> 1, etc.
+      return (
+        <div
+          className={`ghost-block ${ghostBlock.isValid ? 'ghost-valid' : 'ghost-invalid'}`}
+          style={{
+            position: 'absolute',
+            left: `${ghostBlock.col * 5}%`,
+            bottom: `${(3 - groundRow) * 6.25}%`, // ground area is 0-25%
+            width: '5.2%',
+            height: '6.5%',
+            zIndex: 150,
+          }}
+        >
+          <ItemSprite itemId={ghostBlock.type} size={0} className="grid-item-fill" />
+        </div>
+      );
+    }
+
     const pos = gridToPercent(ghostBlock.col, ghostBlock.row);
 
     return (
@@ -222,7 +248,56 @@ export function WorldView({
         }}
       ></div>
 
-      <div className="ground"></div>
+      {/* 땅 블록 렌더링 - 4줄 (맨 위 잔디, 나머지 흙) */}
+      <div className="ground-blocks">
+        {groundBlocks.map((row, rowIdx) =>
+          row.map((blockType, col) => {
+            // 빈 칸이면 클릭 가능한 placeholder 렌더링
+            if (!blockType) {
+              return (
+                <div
+                  key={`ground-empty-${rowIdx}-${col}`}
+                  className="ground-block-empty"
+                  style={{
+                    left: `${col * 5}%`,
+                    bottom: `${(3 - rowIdx) * 25}%`,
+                  }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onGroundBlockPlace(col, rowIdx);
+                  }}
+                />
+              );
+            }
+
+            // 채굴 중인지 확인 (ground blocks use negative row: -(rowIdx + 1))
+            const isBeingMined = miningState &&
+              miningState.row === -(rowIdx + 1) &&
+              miningState.col === col;
+
+            const isMineable = rowIdx < 3; // 맨 아래 줄은 캘 수 없음
+
+            return (
+              <img
+                key={`ground-${rowIdx}-${col}`}
+                src={blockType === 'grass_side' ? "/textures/blocks/grass_side.png" : "/textures/blocks/dirt.png"}
+                alt={blockType}
+                className={`ground-block ${isBeingMined ? 'ground-block-mining' : ''} ${isMineable ? 'ground-block-mineable' : ''}`}
+                style={{
+                  left: `${col * 5}%`,
+                  bottom: `${(3 - rowIdx) * 25}%`,
+                }}
+                onMouseDown={(e) => {
+                  if (e.button === 0 && isMineable) {
+                    e.stopPropagation();
+                    onGroundMouseDown(col, rowIdx);
+                  }
+                }}
+              />
+            );
+          })
+        )}
+      </div>
 
       {/* Grid 블록 렌더링 */}
       {renderGridBlocks()}
