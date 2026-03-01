@@ -1,18 +1,10 @@
 export type TimerMode = 'idle' | 'running' | 'paused' | 'done';
 
-// 기존 엔티티 (몹/장식)
-export type EntityType = 'flower' | 'tree' | 'dog' | 'cat' | 'horse' | 'zombie' | 'skeleton' | 'creeper' | 'stone_block';
+// 아이템 타입 (오픈소스에서 추가 예정)
+export type ItemType = string;
 
-// 자원 아이템
-export type ResourceType = 'wood' | 'stone' | 'plank' | 'stick' | 'cobblestone';
-
-// 설치 가능한 아이템
-export type PlaceableType = 'crafting_table' | 'furnace' | 'chest';
-
-// 모든 아이템 타입
-export type ItemType = EntityType | ResourceType | PlaceableType;
-
-export type SpriteType = ItemType | 'steve_stand' | 'steve_mine_1' | 'steve_mine_2' | 'steve_walk_1' | 'steve_walk_2' | 'steve_walk_3' | 'steve_jump';
+// 스프라이트 타입
+export type SpriteType = string;
 
 // Steve 상태
 export interface SteveState {
@@ -33,19 +25,6 @@ export interface InventorySlot {
   count: number;
 }
 
-// 기존 인벤토리 (호환성)
-export interface Inventory {
-  flower: number;
-  tree: number;
-  dog: number;
-  cat: number;
-  horse: number;
-  zombie: number;
-  skeleton: number;
-  creeper: number;
-  stone_block: number;
-}
-
 // 새로운 인벤토리 시스템 (슬롯 기반)
 export interface PlayerInventory {
   slots: InventorySlot[];  // 36슬롯 (9x4)
@@ -61,7 +40,7 @@ export interface HeldItem {
 
 export interface WorldDecoration {
   id: number;
-  type: ItemType;  // EntityType | PlaceableType 모두 가능
+  type: ItemType;
   x: number;
   bottom: number;
   size: number;
@@ -82,9 +61,4 @@ export interface DragInfo {
   startY: number;
   initX: number;
   initBottom: number;
-}
-
-export interface SaveData {
-  inv: Inventory;
-  decos: WorldDecoration[];
 }

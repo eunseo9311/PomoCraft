@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { InventorySlot, ItemType } from '../types';
 import { EMPTY_SLOT } from '../constants';
 import { matchRecipe, RECIPES_2X2, RECIPES_3X3, Recipe } from '../constants/crafting';
-import { PixelSprite } from './PixelSprite';
+import { ItemSprite } from './ItemSprite';
 
 interface CraftingModalProps {
   isOpen: boolean;
@@ -64,7 +64,7 @@ export function CraftingModal({ isOpen, gridSize, onClose, onCraft }: CraftingMo
               >
                 {slot.type && (
                   <>
-                    <PixelSprite name={slot.type} size={32} />
+                    <ItemSprite itemId={slot.type} size={32} />
                     {slot.count > 1 && <span className="inv-slot-count">{slot.count}</span>}
                   </>
                 )}
@@ -81,7 +81,7 @@ export function CraftingModal({ isOpen, gridSize, onClose, onCraft }: CraftingMo
           >
             {result && (
               <>
-                <PixelSprite name={result.result.type} size={32} />
+                <ItemSprite itemId={result.result.type} size={32} />
                 {result.result.count > 1 && (
                   <span className="inv-slot-count">{result.result.count}</span>
                 )}

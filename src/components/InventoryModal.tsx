@@ -3,6 +3,7 @@ import { PlayerInventory, HeldItem, InventorySlot, ItemType } from '../types';
 import { EMPTY_SLOT } from '../constants';
 import { matchRecipe, RECIPES_2X2 } from '../constants/crafting';
 import { PixelSprite } from './PixelSprite';
+import { ItemSprite } from './ItemSprite';
 
 // 갑옷 슬롯 아이콘들 (SVG)
 const HelmetIcon = () => (
@@ -194,7 +195,7 @@ export function InventoryModal({
       >
         {slot.type && (
           <>
-            <PixelSprite name={slot.type} size={32} />
+            <ItemSprite itemId={slot.type} size={32} />
             {slot.count > 1 && (
               <span className="inv-slot-count">{slot.count}</span>
             )}
@@ -254,7 +255,7 @@ export function InventoryModal({
                   >
                     {slot.type && (
                       <>
-                        <PixelSprite name={slot.type} size={32} />
+                        <ItemSprite itemId={slot.type} size={32} />
                         {slot.count > 1 && <span className="inv-slot-count">{slot.count}</span>}
                       </>
                     )}
@@ -269,7 +270,7 @@ export function InventoryModal({
               >
                 {craftResult && (
                   <>
-                    <PixelSprite name={craftResult.result.type} size={32} />
+                    <ItemSprite itemId={craftResult.result.type} size={32} />
                     {craftResult.result.count > 1 && (
                       <span className="inv-slot-count">{craftResult.result.count}</span>
                     )}

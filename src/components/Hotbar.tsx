@@ -1,5 +1,5 @@
 import { PlayerInventory } from '../types';
-import { PixelSprite } from './PixelSprite';
+import { ItemSprite } from './ItemSprite';
 
 interface HotbarProps {
   inventory: PlayerInventory;
@@ -23,7 +23,7 @@ export function Hotbar({ inventory, onSlotSelect }: HotbarProps) {
             <span className="hotbar-slot-number">{i + 1}</span>
             {slot.type && (
               <>
-                <PixelSprite name={slot.type} size={36} />
+                <ItemSprite itemId={slot.type} size={36} />
                 {slot.count > 1 && (
                   <span className="hotbar-slot-count">{slot.count}</span>
                 )}

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { HeldItem } from '../types';
-import { PixelSprite } from './PixelSprite';
+import { ItemSprite } from './ItemSprite';
 
 interface HeldItemCursorProps {
   heldItem: HeldItem | null;
@@ -28,7 +28,7 @@ export function HeldItemCursor({ heldItem }: HeldItemCursorProps) {
         top: position.y,
       }}
     >
-      <PixelSprite name={heldItem.type} size={32} />
+      <ItemSprite itemId={heldItem.type} size={32} />
       {heldItem.count > 1 && (
         <span className="held-item-count">{heldItem.count}</span>
       )}

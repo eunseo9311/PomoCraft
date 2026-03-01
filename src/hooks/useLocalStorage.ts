@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Inventory, WorldDecoration, SaveData } from '../types';
-import { DEFAULT_INVENTORY, STORAGE_KEY } from '../constants';
+import { WorldDecoration } from '../types';
+import { STORAGE_KEY } from '../constants';
 
 export function useLocalStorage() {
-  const [inventory, setInventory] = useState<Inventory>(DEFAULT_INVENTORY);
   const [worldDecorations, setWorldDecorations] = useState<WorldDecoration[]>([]);
 
   // Load data on mount
@@ -11,9 +10,8 @@ export function useLocalStorage() {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
       try {
-        const { inv, decos }: SaveData = JSON.parse(saved);
-        if (inv) setInventory({ ...DEFAULT_INVENTORY, ...inv });
-        if (decos) setWorldDecorations(decos);
+        const data = JSON.parse(saved);
+        if (data.decos) setWorldDecorations(data.decos);
       } catch {
         // ignore parse errors
       }
@@ -24,19 +22,16 @@ export function useLocalStorage() {
   useEffect(() => {
     localStorage.setItem(
       STORAGE_KEY,
-      JSON.stringify({ inv: inventory, decos: worldDecorations })
+      JSON.stringify({ decos: worldDecorations })
     );
-  }, [inventory, worldDecorations]);
+  }, [worldDecorations]);
 
   const clearData = () => {
-    setInventory(DEFAULT_INVENTORY);
     setWorldDecorations([]);
     localStorage.removeItem(STORAGE_KEY);
   };
 
   return {
-    inventory,
-    setInventory,
     worldDecorations,
     setWorldDecorations,
     clearData,

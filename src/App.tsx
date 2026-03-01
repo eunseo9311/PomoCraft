@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { TimerMode, DragInfo, EntityType, PlayerInventory, HeldItem, ItemType, SteveState } from './types';
-import { DEFAULT_INVENTORY, createTestInventory, EMPTY_SLOT, MAX_STACK, INVENTORY_STORAGE_KEY } from './constants';
+import { TimerMode, DragInfo, PlayerInventory, HeldItem, ItemType, SteveState } from './types';
+import { createTestInventory, EMPTY_SLOT, INVENTORY_STORAGE_KEY, getMaxStack } from './constants';
 import { useToast, useLocalStorage } from './hooks';
 import {
   Timer,
@@ -80,7 +80,7 @@ function App() {
     // 월드에 아이템 드롭 (Steve 위치 근처)
     const droppedItem = {
       id: Date.now() + Math.random(),
-      type: currentSlot.type as EntityType,
+      type: currentSlot.type,
       x: steveState.x + (steveState.facingRight ? 5 : -5),
       bottom: 15 + Math.random() * 5,
       size: 32,
@@ -344,7 +344,7 @@ function App() {
           setHeldItem(null);
         } else if (clickedSlot.type === heldItem.type) {
           // 같은 아이템이면 합치기
-          const maxStack = MAX_STACK[heldItem.type] || 64;
+          const maxStack = getMaxStack(heldItem.type);
           const totalCount = clickedSlot.count + heldItem.count;
           if (totalCount <= maxStack) {
             newSlots[slotIndex] = { type: clickedSlot.type, count: totalCount };
@@ -401,7 +401,7 @@ function App() {
             setHeldItem(null);
           }
         } else if (clickedSlot.type === heldItem.type) {
-          const maxStack = MAX_STACK[heldItem.type] || 64;
+          const maxStack = getMaxStack(heldItem.type);
           if (clickedSlot.count < maxStack) {
             newSlots[slotIndex] = { type: clickedSlot.type, count: clickedSlot.count + 1 };
             if (heldItem.count > 1) {
@@ -423,7 +423,7 @@ function App() {
     if (!clickedSlot.type) return;
 
     const itemType = clickedSlot.type;
-    const maxStack = MAX_STACK[itemType] || 64;
+    const maxStack = getMaxStack(itemType);
     let totalCount = clickedSlot.count;
 
     setPlayerInventory(prev => {
@@ -460,7 +460,7 @@ function App() {
         for (const idx of slotIndices) {
           if (remainingCount <= 0) break;
           const slot = newSlots[idx];
-          const maxStack = MAX_STACK[heldItem.type] || 64;
+          const maxStack = getMaxStack(heldItem.type);
 
           if (!slot.type) {
             newSlots[idx] = { type: heldItem.type, count: 1 };
@@ -483,7 +483,7 @@ function App() {
 
           for (const idx of validSlots) {
             const slot = newSlots[idx];
-            const maxStack = MAX_STACK[heldItem.type] || 64;
+            const maxStack = getMaxStack(heldItem.type);
             let toAdd = perSlot + (extra > 0 ? 1 : 0);
             if (extra > 0) extra--;
 
@@ -521,17 +521,13 @@ function App() {
     const selectedSlot = playerInventory.slots[playerInventory.hotbar];
     if (!selectedSlot.type || selectedSlot.count <= 0) return;
 
-    // 배치 가능한 아이템 타입 확인 (설치물)
-    const placeableTypes = ['crafting_table', 'furnace', 'chest', 'flower', 'tree'];
-    if (!placeableTypes.includes(selectedSlot.type)) return;
-
     // 새로운 월드 장식 추가
     const newDeco = {
       id: Date.now() + Math.random(),
-      type: selectedSlot.type as EntityType,
+      type: selectedSlot.type,
       x: Math.max(2, Math.min(95, xPercent)),
       bottom: bottomPercent,
-      size: selectedSlot.type === 'tree' ? 80 : selectedSlot.type === 'crafting_table' ? 48 : 40,
+      size: 48,
       flip: false,
     };
 
@@ -561,64 +557,37 @@ function App() {
     }
   }, [worldDecorations]);
 
-  // 엔티티 클릭 (채집)
+  // 엔티티 클릭 (아이템 줍기)
   const handleEntityClick = useCallback((entityId: number) => {
     const entity = worldDecorations.find(d => d.id === entityId);
     if (!entity) return;
 
-    // 채집 가능한 자원 정의
-    const harvestableResources: Record<string, { resource: ItemType; minAmount: number; maxAmount: number }> = {
-      tree: { resource: 'wood', minAmount: 1, maxAmount: 3 },
-      stone_block: { resource: 'stone', minAmount: 1, maxAmount: 2 },
-    };
-
-    const harvestInfo = harvestableResources[entity.type];
-    if (!harvestInfo) return;
-
-    // 랜덤 수량 계산
-    const amount = Math.floor(Math.random() * (harvestInfo.maxAmount - harvestInfo.minAmount + 1)) + harvestInfo.minAmount;
-
-    // 인벤토리에 자원 추가
+    // 인벤토리에 아이템 추가
     setPlayerInventory(prev => {
       const newSlots = [...prev.slots];
-      let remaining = amount;
 
       // 기존 슬롯에 같은 아이템 있으면 합치기
-      for (let i = 0; i < newSlots.length && remaining > 0; i++) {
-        if (newSlots[i].type === harvestInfo.resource) {
-          const maxStack = MAX_STACK[harvestInfo.resource] || 64;
-          const canAdd = Math.min(remaining, maxStack - newSlots[i].count);
-          if (canAdd > 0) {
-            newSlots[i] = { ...newSlots[i], count: newSlots[i].count + canAdd };
-            remaining -= canAdd;
-          }
+      for (let i = 0; i < newSlots.length; i++) {
+        if (newSlots[i].type === entity.type && newSlots[i].count < 64) {
+          newSlots[i] = { ...newSlots[i], count: newSlots[i].count + 1 };
+          return { ...prev, slots: newSlots };
         }
       }
 
       // 빈 슬롯에 추가
-      for (let i = 0; i < newSlots.length && remaining > 0; i++) {
+      for (let i = 0; i < newSlots.length; i++) {
         if (!newSlots[i].type) {
-          const maxStack = MAX_STACK[harvestInfo.resource] || 64;
-          const toAdd = Math.min(remaining, maxStack);
-          newSlots[i] = { type: harvestInfo.resource, count: toAdd };
-          remaining -= toAdd;
+          newSlots[i] = { type: entity.type, count: 1 };
+          return { ...prev, slots: newSlots };
         }
       }
 
-      return { ...prev, slots: newSlots };
+      return prev; // 인벤토리 가득 참
     });
 
-    // 자원 제거 (나무/돌 사라짐)
+    // 월드에서 제거
     setWorldDecorations(prev => prev.filter(d => d.id !== entityId));
-
-    // 토스트 표시
-    addToast(
-      '자원 획득!',
-      `${harvestInfo.resource} x${amount}`,
-      harvestInfo.resource,
-      '#55FF55'
-    );
-  }, [worldDecorations, setWorldDecorations, addToast]);
+  }, [worldDecorations, setWorldDecorations]);
 
   // 제작 결과를 인벤토리에 추가
   const handleCraftResult = useCallback((item: { type: ItemType; count: number }) => {
@@ -629,7 +598,7 @@ function App() {
       // 기존 슬롯에 같은 아이템 있으면 합치기
       for (let i = 0; i < newSlots.length && remaining > 0; i++) {
         if (newSlots[i].type === item.type) {
-          const maxStack = MAX_STACK[item.type] || 64;
+          const maxStack = getMaxStack(item.type);
           const canAdd = Math.min(remaining, maxStack - newSlots[i].count);
           if (canAdd > 0) {
             newSlots[i] = { ...newSlots[i], count: newSlots[i].count + canAdd };
@@ -641,7 +610,7 @@ function App() {
       // 빈 슬롯에 추가
       for (let i = 0; i < newSlots.length && remaining > 0; i++) {
         if (!newSlots[i].type) {
-          const maxStack = MAX_STACK[item.type] || 64;
+          const maxStack = getMaxStack(item.type);
           const toAdd = Math.min(remaining, maxStack);
           newSlots[i] = { type: item.type, count: toAdd };
           remaining -= toAdd;
@@ -680,130 +649,17 @@ function App() {
   const handleDone = () => {
     setMode('done');
     const minFocused = Math.floor((initialTime - timeLeft) / 60);
-    const rewards = { ...DEFAULT_INVENTORY };
 
-    let gotMob = false;
-
-    if (minFocused >= 1) {
-      rewards.flower = Math.floor(Math.random() * 3) + 1;
-      rewards.tree = Math.floor(Math.random() * 2) + 1;
-
-      const mobCount = minFocused >= 25 ? 3 : minFocused >= 15 ? 2 : 1;
-      for (let i = 0; i < mobCount; i++) {
-        const r = Math.random();
-        if (r < 0.15) rewards.dog++;
-        else if (r < 0.35) rewards.cat++;
-        else if (r < 0.55) rewards.horse++;
-        else if (r < 0.75) {
-          rewards.zombie++;
-          gotMob = true;
-        } else if (r < 0.9) {
-          rewards.skeleton++;
-          gotMob = true;
-        } else {
-          rewards.creeper++;
-          gotMob = true;
-        }
-      }
-    }
-
-    // Show achievement toasts
+    // 집중 시간에 따른 토스트 표시
     if (minFocused >= 1 && minFocused < 15) {
-      addToast('발전 과제 달성!', '성공적인 집중의 시작', 'tree', '#55FF55');
+      addToast('발전 과제 달성!', '성공적인 집중의 시작', 'steve_stand', '#55FF55');
     }
     if (minFocused >= 15 && minFocused < 25) {
-      addToast('목표 달성!', '시간은 금이다', 'flower', '#FFFF55');
+      addToast('목표 달성!', '시간은 금이다', 'steve_stand', '#FFFF55');
     }
     if (minFocused >= 25) {
-      addToast('도전 완료!', '도를 넘은 전념', 'creeper', '#FF55FF');
+      addToast('도전 완료!', '도를 넘은 전념', 'steve_stand', '#FF55FF');
     }
-    if (gotMob) {
-      setTimeout(
-        () => addToast('발전 과제 달성!', '몬스터 헌터', 'zombie', '#FFFF55'),
-        800
-      );
-    }
-
-    // 새로운 인벤토리 시스템에 자원 추가 (집중 보상으로 wood, stone 획득)
-    if (minFocused >= 1) {
-      const woodReward = minFocused >= 25 ? 8 : minFocused >= 15 ? 5 : 3;
-      const stoneReward = minFocused >= 25 ? 6 : minFocused >= 15 ? 4 : 2;
-
-      setPlayerInventory(prev => {
-        const newSlots = [...prev.slots];
-        // 빈 슬롯 찾아서 자원 추가
-        const addToInventory = (itemType: string, count: number) => {
-          // 기존 슬롯에 같은 아이템 있으면 합치기
-          for (let i = 0; i < newSlots.length; i++) {
-            if (newSlots[i].type === itemType && newSlots[i].count < 64) {
-              const canAdd = Math.min(count, 64 - newSlots[i].count);
-              newSlots[i] = { ...newSlots[i], count: newSlots[i].count + canAdd };
-              count -= canAdd;
-              if (count <= 0) return;
-            }
-          }
-          // 빈 슬롯에 추가
-          for (let i = 0; i < newSlots.length && count > 0; i++) {
-            if (!newSlots[i].type) {
-              const toAdd = Math.min(count, 64);
-              newSlots[i] = { type: itemType as any, count: toAdd };
-              count -= toAdd;
-            }
-          }
-        };
-
-        addToInventory('wood', woodReward);
-        addToInventory('stone', stoneReward);
-        return { ...prev, slots: newSlots };
-      });
-    }
-
-    const newDecos = (Object.entries(rewards) as [EntityType, number][]).flatMap(
-      ([type, count]) => {
-        const decos = [];
-        for (let i = 0; i < count; i++) {
-          let baseBottom = 12 + Math.random() * 10;
-          let size = 32 + Math.random() * 10;
-          const newX = 5 + Math.random() * 85;
-
-          if (type === 'tree') {
-            size = 60 + Math.random() * 90;
-          } else if (
-            ['dog', 'cat', 'zombie', 'creeper', 'skeleton', 'horse'].includes(type)
-          ) {
-            size = 48 + Math.random() * 15;
-            if (type === 'horse') size += 20;
-          }
-
-          decos.push({
-            id: Date.now() + Math.random(),
-            type,
-            x: newX,
-            bottom: baseBottom,
-            size,
-            flip: Math.random() > 0.5,
-          });
-        }
-        return decos;
-      }
-    );
-
-    // 집중 시간에 따라 돌 블록도 생성
-    if (minFocused >= 1) {
-      const stoneBlockCount = minFocused >= 25 ? 3 : minFocused >= 15 ? 2 : 1;
-      for (let i = 0; i < stoneBlockCount; i++) {
-        newDecos.push({
-          id: Date.now() + Math.random() + 1000,
-          type: 'stone_block' as EntityType,
-          x: 5 + Math.random() * 85,
-          bottom: 12 + Math.random() * 8,
-          size: 48 + Math.random() * 16,
-          flip: false,
-        });
-      }
-    }
-
-    setWorldDecorations((prev) => [...prev, ...newDecos]);
   };
 
   const handleDragStart = useCallback((info: DragInfo) => {
