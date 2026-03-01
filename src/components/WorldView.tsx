@@ -1,5 +1,5 @@
 import { useRef, useEffect } from 'react';
-import { WorldDecoration, DragInfo, TimerMode, InventorySlot } from '../types';
+import { WorldDecoration, DragInfo, TimerMode, InventorySlot, SteveState, SpriteType } from '../types';
 import { PixelSprite } from './PixelSprite';
 
 interface WorldViewProps {
@@ -8,6 +8,7 @@ interface WorldViewProps {
   isNight: boolean;
   dragInfo: DragInfo | null;
   selectedItem: InventorySlot | null;
+  steveState: SteveState;
   onDragStart: (info: DragInfo) => void;
   onDragMove: (deltaXPercent: number, deltaBottomPercent: number) => void;
   onDragEnd: () => void;
@@ -21,6 +22,7 @@ export function WorldView({
   isNight,
   dragInfo,
   selectedItem,
+  steveState,
   onDragStart,
   onDragMove,
   onDragEnd,
@@ -135,23 +137,42 @@ export function WorldView({
           </div>
         ))}
 
+      {/* Steve 캐릭터 */}
       <div
+        className={`steve-character ${steveState.isRunning ? 'steve-running' : ''}`}
         style={{
           position: 'absolute',
-          bottom: '22%',
-          left: '45%',
+          bottom: `calc(22% + ${steveState.y}px)`,
+          left: `${steveState.x}%`,
           zIndex: 78,
           pointerEvents: 'none',
+          transform: steveState.facingRight ? 'none' : 'scaleX(-1)',
+          transition: 'transform 0.1s',
         }}
       >
-        {mode === 'running' ? (
-          <div className="anim-steve-wrapper">
-            <PixelSprite name="steve_mine_1" size={96} className="frame-1" />
-            <PixelSprite name="steve_mine_2" size={96} className="frame-2" />
-          </div>
-        ) : (
-          <PixelSprite name="steve_stand" size={96} />
-        )}
+        {(() => {
+          // 스프라이트 선택 로직
+          let spriteName: SpriteType = 'steve_stand';
+
+          if (steveState.isJumping) {
+            spriteName = 'steve_jump';
+          } else if (mode === 'running' && !steveState.isWalking) {
+            // 타이머가 돌아가는 중이면 채굴 애니메이션
+            return (
+              <div className="anim-steve-wrapper">
+                <PixelSprite name="steve_mine_1" size={96} className="frame-1" />
+                <PixelSprite name="steve_mine_2" size={96} className="frame-2" />
+              </div>
+            );
+          } else if (steveState.isWalking) {
+            // 걷기 애니메이션 (3프레임 순환)
+            const walkFrameIndex = Math.floor(steveState.walkFrame / 4) % 3;
+            const walkSprites: SpriteType[] = ['steve_walk_1', 'steve_walk_2', 'steve_walk_3'];
+            spriteName = walkSprites[walkFrameIndex];
+          }
+
+          return <PixelSprite name={spriteName} size={96} />;
+        })()}
       </div>
     </div>
   );

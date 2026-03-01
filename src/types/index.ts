@@ -12,7 +12,19 @@ export type PlaceableType = 'crafting_table' | 'furnace' | 'chest';
 // 모든 아이템 타입
 export type ItemType = EntityType | ResourceType | PlaceableType;
 
-export type SpriteType = ItemType | 'steve_stand' | 'steve_mine_1' | 'steve_mine_2';
+export type SpriteType = ItemType | 'steve_stand' | 'steve_mine_1' | 'steve_mine_2' | 'steve_walk_1' | 'steve_walk_2' | 'steve_walk_3' | 'steve_jump';
+
+// Steve 상태
+export interface SteveState {
+  x: number;           // X 위치 (%)
+  y: number;           // Y 위치 (점프용, 0 = 땅)
+  velocityY: number;   // Y 속도 (점프/낙하)
+  facingRight: boolean; // 오른쪽 보기
+  isWalking: boolean;  // 걷는 중
+  isRunning: boolean;  // 달리는 중
+  isJumping: boolean;  // 점프 중
+  walkFrame: number;   // 걷기 애니메이션 프레임
+}
 
 // 인벤토리 슬롯
 export interface InventorySlot {

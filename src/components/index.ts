@@ -6,3 +6,4 @@ export { InventoryPanel } from './InventoryPanel';
 export { InventoryModal } from './InventoryModal';
 export { HeldItemCursor } from './HeldItemCursor';
 export { Hotbar } from './Hotbar';
+export { CraftingModal } from './CraftingModal';

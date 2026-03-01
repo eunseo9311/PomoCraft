@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
-import { TimerMode, DragInfo, EntityType, PlayerInventory, HeldItem } from './types';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { TimerMode, DragInfo, EntityType, PlayerInventory, HeldItem, ItemType, SteveState } from './types';
 import { DEFAULT_INVENTORY, createTestInventory, EMPTY_SLOT, MAX_STACK, INVENTORY_STORAGE_KEY } from './constants';
 import { useToast, useLocalStorage } from './hooks';
 import {
@@ -9,13 +9,37 @@ import {
   InventoryModal,
   HeldItemCursor,
   Hotbar,
+  CraftingModal,
 } from './components';
+
+// Steve 물리 상수
+const STEVE_SPEED = 0.8;        // 기본 이동 속도 (%/frame)
+const STEVE_RUN_SPEED = 1.6;   // 달리기 속도
+const JUMP_VELOCITY = 12;      // 점프 초기 속도
+const GRAVITY = 0.8;           // 중력
+const GROUND_Y = 0;            // 땅 높이
 
 function App() {
   const [initialTime, setInitialTime] = useState(25 * 60);
   const [timeLeft, setTimeLeft] = useState(25 * 60);
   const [mode, setMode] = useState<TimerMode>('idle');
   const [dragInfo, setDragInfo] = useState<DragInfo | null>(null);
+
+  // Steve 상태
+  const [steveState, setSteveState] = useState<SteveState>({
+    x: 45,
+    y: GROUND_Y,
+    velocityY: 0,
+    facingRight: true,
+    isWalking: false,
+    isRunning: false,
+    isJumping: false,
+    walkFrame: 0,
+  });
+
+  // 키 입력 상태
+  const keysPressed = useRef<Set<string>>(new Set());
+  const lastWPress = useRef<number>(0);
 
   // 인벤토리 시스템
   const [isInventoryOpen, setIsInventoryOpen] = useState(false);
@@ -31,6 +55,7 @@ function App() {
     return createTestInventory();
   });
   const [heldItem, setHeldItem] = useState<HeldItem | null>(null);
+  const [isCraftingTableOpen, setIsCraftingTableOpen] = useState(false);
 
   const { toasts, addToast } = useToast();
   const {
@@ -69,6 +94,139 @@ function App() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isInventoryOpen, heldItem]);
+
+  // 마우스 휠로 핫바 슬롯 변경
+  useEffect(() => {
+    const handleWheel = (e: WheelEvent) => {
+      if (isInventoryOpen || isCraftingTableOpen) return;
+
+      e.preventDefault();
+      setPlayerInventory(prev => {
+        let newHotbar = prev.hotbar;
+        if (e.deltaY > 0) {
+          // 아래로 스크롤 → 다음 슬롯
+          newHotbar = (prev.hotbar + 1) % 9;
+        } else if (e.deltaY < 0) {
+          // 위로 스크롤 → 이전 슬롯
+          newHotbar = (prev.hotbar - 1 + 9) % 9;
+        }
+        return { ...prev, hotbar: newHotbar };
+      });
+    };
+
+    window.addEventListener('wheel', handleWheel, { passive: false });
+    return () => window.removeEventListener('wheel', handleWheel);
+  }, [isInventoryOpen, isCraftingTableOpen]);
+
+  // WASD 이동 + 점프 키 핸들러
+  useEffect(() => {
+    if (isInventoryOpen || isCraftingTableOpen) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const key = e.key.toLowerCase();
+
+      // W 더블탭 감지 (달리기)
+      if (key === 'w' || key === 'ㅈ') {
+        const now = Date.now();
+        if (now - lastWPress.current < 300) {
+          // 더블탭! 달리기 모드
+          setSteveState(prev => ({ ...prev, isRunning: true }));
+        }
+        lastWPress.current = now;
+      }
+
+      // 스페이스바: 점프
+      if (key === ' ' && !keysPressed.current.has(' ')) {
+        setSteveState(prev => {
+          if (!prev.isJumping && prev.y === GROUND_Y) {
+            return { ...prev, velocityY: JUMP_VELOCITY, isJumping: true };
+          }
+          return prev;
+        });
+      }
+
+      keysPressed.current.add(key);
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      const key = e.key.toLowerCase();
+      keysPressed.current.delete(key);
+
+      // W 떼면 달리기 중지
+      if (key === 'w' || key === 'ㅈ') {
+        setSteveState(prev => ({ ...prev, isRunning: false }));
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, [isInventoryOpen, isCraftingTableOpen]);
+
+  // Steve 게임 루프 (물리 + 애니메이션)
+  useEffect(() => {
+    if (isInventoryOpen || isCraftingTableOpen) return;
+
+    const gameLoop = setInterval(() => {
+      setSteveState(prev => {
+        let { x, y, velocityY, facingRight, isWalking, isRunning, isJumping, walkFrame } = prev;
+
+        // 이동 입력 처리
+        const moveLeft = keysPressed.current.has('a') || keysPressed.current.has('ㅁ');
+        const moveRight = keysPressed.current.has('d') || keysPressed.current.has('ㅇ');
+        const moveForward = keysPressed.current.has('w') || keysPressed.current.has('ㅈ');
+
+        // 현재 이동 속도 계산
+        const speed = isRunning ? STEVE_RUN_SPEED : STEVE_SPEED;
+
+        // 이동 처리
+        if (moveLeft) {
+          x = Math.max(2, x - speed);
+          facingRight = false;
+          isWalking = true;
+        } else if (moveRight) {
+          x = Math.min(95, x + speed);
+          facingRight = true;
+          isWalking = true;
+        } else if (moveForward) {
+          // W키만 누르면 바라보는 방향으로 이동
+          if (facingRight) {
+            x = Math.min(95, x + speed);
+          } else {
+            x = Math.max(2, x - speed);
+          }
+          isWalking = true;
+        } else {
+          isWalking = false;
+        }
+
+        // 중력 및 점프 물리
+        if (isJumping || y > GROUND_Y) {
+          velocityY -= GRAVITY;
+          y = Math.max(GROUND_Y, y + velocityY * 0.1);
+
+          if (y === GROUND_Y) {
+            isJumping = false;
+            velocityY = 0;
+          }
+        }
+
+        // 걷기 애니메이션 프레임
+        if (isWalking) {
+          walkFrame = (walkFrame + 1) % 12; // 3프레임 x 4 (속도 조절)
+        } else {
+          walkFrame = 0;
+        }
+
+        return { x, y, velocityY, facingRight, isWalking, isRunning, isJumping, walkFrame };
+      });
+    }, 1000 / 60); // 60 FPS
+
+    return () => clearInterval(gameLoop);
+  }, [isInventoryOpen, isCraftingTableOpen]);
 
   // 슬롯 클릭 (아이템 들기/놓기)
   const handleSlotClick = useCallback((slotIndex: number) => {
@@ -211,12 +369,43 @@ function App() {
     const entity = worldDecorations.find(d => d.id === entityId);
     if (!entity) return;
 
-    // 제작대 우클릭 시 제작 UI 열기 (추후 구현)
+    // 제작대 우클릭 시 3x3 제작 UI 열기
     if (entity.type === 'crafting_table') {
-      // TODO: 3x3 제작 UI 열기
-      console.log('제작대 상호작용!');
+      setIsCraftingTableOpen(true);
     }
   }, [worldDecorations]);
+
+  // 제작 결과를 인벤토리에 추가
+  const handleCraftResult = useCallback((item: { type: ItemType; count: number }) => {
+    setPlayerInventory(prev => {
+      const newSlots = [...prev.slots];
+      let remaining = item.count;
+
+      // 기존 슬롯에 같은 아이템 있으면 합치기
+      for (let i = 0; i < newSlots.length && remaining > 0; i++) {
+        if (newSlots[i].type === item.type) {
+          const maxStack = MAX_STACK[item.type] || 64;
+          const canAdd = Math.min(remaining, maxStack - newSlots[i].count);
+          if (canAdd > 0) {
+            newSlots[i] = { ...newSlots[i], count: newSlots[i].count + canAdd };
+            remaining -= canAdd;
+          }
+        }
+      }
+
+      // 빈 슬롯에 추가
+      for (let i = 0; i < newSlots.length && remaining > 0; i++) {
+        if (!newSlots[i].type) {
+          const maxStack = MAX_STACK[item.type] || 64;
+          const toAdd = Math.min(remaining, maxStack);
+          newSlots[i] = { type: item.type, count: toAdd };
+          remaining -= toAdd;
+        }
+      }
+
+      return { ...prev, slots: newSlots };
+    });
+  }, []);
 
   // Timer loop
   useEffect(() => {
@@ -411,6 +600,7 @@ function App() {
         isNight={isNight}
         dragInfo={isInventoryOpen ? null : dragInfo}
         selectedItem={isInventoryOpen ? null : playerInventory.slots[playerInventory.hotbar]}
+        steveState={steveState}
         onDragStart={isInventoryOpen ? () => {} : handleDragStart}
         onDragMove={isInventoryOpen ? () => {} : handleDragMove}
         onDragEnd={isInventoryOpen ? () => {} : handleDragEnd}
@@ -435,6 +625,17 @@ function App() {
         }}
         onSlotClick={handleSlotClick}
         onSlotRightClick={handleSlotRightClick}
+        onCraftResult={handleCraftResult}
+      />
+
+      {/* 제작대 모달 (3x3) */}
+      <CraftingModal
+        isOpen={isCraftingTableOpen}
+        gridSize={3}
+        onClose={() => setIsCraftingTableOpen(false)}
+        onCraft={(result) => {
+          handleCraftResult(result);
+        }}
       />
 
       {/* 들고 있는 아이템 (커서 따라다님) */}
