@@ -20,6 +20,51 @@ const JUMP_VELOCITY = 12;      // 점프 초기 속도
 const GRAVITY = 0.8;           // 중력
 const GROUND_Y = 0;            // 땅 높이
 
+// 자원 채집 상수
+const RESOURCE_SPAWN_INTERVAL = 3000;   // 자원 스폰 간격 (ms)
+const AUTO_GATHER_INTERVAL = 5000;      // 자동 채집 간격 (ms)
+const RESOURCE_DESPAWN_TIME = 30000;    // 자원 디스폰 시간 (ms)
+const MAX_RESOURCES_ON_SCREEN = 8;      // 화면에 최대 자원 블록 수
+
+// 자원 타입 및 확률 (집중 시간에 따라 변경됨)
+interface ResourceConfig {
+  type: ItemType;
+  weight: number;  // 스폰 가중치
+  minMinutes: number; // 최소 집중 시간 (분)
+}
+
+const getResourcePool = (elapsedMinutes: number): ResourceConfig[] => {
+  const pool: ResourceConfig[] = [
+    // 기본 자원 (항상)
+    { type: 'oak_log', weight: 30, minMinutes: 0 },
+    { type: 'dirt', weight: 25, minMinutes: 0 },
+    // 중간 세션 (5분+)
+    { type: 'cobblestone', weight: 20, minMinutes: 5 },
+    { type: 'coal', weight: 15, minMinutes: 5 },
+    // 긴 세션 (15분+)
+    { type: 'iron_ore', weight: 10, minMinutes: 15 },
+    { type: 'gold_ore', weight: 5, minMinutes: 20 },
+    // 아주 긴 세션 (25분+, 희귀)
+    { type: 'diamond', weight: 2, minMinutes: 25 },
+    { type: 'emerald', weight: 1, minMinutes: 30 },
+  ];
+
+  return pool.filter(r => elapsedMinutes >= r.minMinutes);
+};
+
+// 가중치 기반 랜덤 선택
+const selectRandomResource = (pool: ResourceConfig[]): ItemType => {
+  const totalWeight = pool.reduce((sum, r) => sum + r.weight, 0);
+  let random = Math.random() * totalWeight;
+
+  for (const resource of pool) {
+    random -= resource.weight;
+    if (random <= 0) return resource.type;
+  }
+
+  return pool[0].type;
+};
+
 function App() {
   const [initialTime, setInitialTime] = useState(25 * 60);
   const [timeLeft, setTimeLeft] = useState(25 * 60);
@@ -557,38 +602,6 @@ function App() {
     }
   }, [worldDecorations]);
 
-  // 엔티티 클릭 (아이템 줍기)
-  const handleEntityClick = useCallback((entityId: number) => {
-    const entity = worldDecorations.find(d => d.id === entityId);
-    if (!entity) return;
-
-    // 인벤토리에 아이템 추가
-    setPlayerInventory(prev => {
-      const newSlots = [...prev.slots];
-
-      // 기존 슬롯에 같은 아이템 있으면 합치기
-      for (let i = 0; i < newSlots.length; i++) {
-        if (newSlots[i].type === entity.type && newSlots[i].count < 64) {
-          newSlots[i] = { ...newSlots[i], count: newSlots[i].count + 1 };
-          return { ...prev, slots: newSlots };
-        }
-      }
-
-      // 빈 슬롯에 추가
-      for (let i = 0; i < newSlots.length; i++) {
-        if (!newSlots[i].type) {
-          newSlots[i] = { type: entity.type, count: 1 };
-          return { ...prev, slots: newSlots };
-        }
-      }
-
-      return prev; // 인벤토리 가득 참
-    });
-
-    // 월드에서 제거
-    setWorldDecorations(prev => prev.filter(d => d.id !== entityId));
-  }, [worldDecorations, setWorldDecorations]);
-
   // 제작 결과를 인벤토리에 추가
   const handleCraftResult = useCallback((item: { type: ItemType; count: number }) => {
     setPlayerInventory(prev => {
@@ -620,6 +633,136 @@ function App() {
       return { ...prev, slots: newSlots };
     });
   }, []);
+
+  // 인벤토리에 아이템 추가 헬퍼 함수
+  const addItemToInventory = useCallback((itemType: ItemType, count: number = 1) => {
+    setPlayerInventory(prev => {
+      const newSlots = [...prev.slots];
+      let remaining = count;
+
+      // 기존 슬롯에 같은 아이템 있으면 합치기
+      for (let i = 0; i < newSlots.length && remaining > 0; i++) {
+        if (newSlots[i].type === itemType) {
+          const maxStack = getMaxStack(itemType);
+          const canAdd = Math.min(remaining, maxStack - newSlots[i].count);
+          if (canAdd > 0) {
+            newSlots[i] = { ...newSlots[i], count: newSlots[i].count + canAdd };
+            remaining -= canAdd;
+          }
+        }
+      }
+
+      // 빈 슬롯에 추가
+      for (let i = 0; i < newSlots.length && remaining > 0; i++) {
+        if (!newSlots[i].type) {
+          const maxStack = getMaxStack(itemType);
+          const toAdd = Math.min(remaining, maxStack);
+          newSlots[i] = { type: itemType, count: toAdd };
+          remaining -= toAdd;
+        }
+      }
+
+      return { ...prev, slots: newSlots };
+    });
+
+    return true;
+  }, []);
+
+  // ========== 자원 채집 시스템 ==========
+
+  // 자원 블록 스폰 (running 모드에서만)
+  useEffect(() => {
+    if (mode !== 'running') return;
+
+    const spawnResource = () => {
+      const elapsedMinutes = Math.floor((initialTime - timeLeft) / 60);
+      const pool = getResourcePool(elapsedMinutes);
+      const resourceType = selectRandomResource(pool);
+
+      // 현재 자원 블록 수 확인
+      const currentResourceCount = worldDecorations.filter(d => d.isResource).length;
+      if (currentResourceCount >= MAX_RESOURCES_ON_SCREEN) return;
+
+      const newResource = {
+        id: Date.now() + Math.random(),
+        type: resourceType,
+        x: 5 + Math.random() * 85,  // 화면 5%~90% 범위
+        bottom: 15 + Math.random() * 15, // 땅 위 15%~30%
+        size: 40,
+        flip: false,
+        spawnedAt: Date.now(),
+        isResource: true,
+      };
+
+      setWorldDecorations(prev => [...prev, newResource]);
+    };
+
+    // 초기 스폰
+    spawnResource();
+
+    // 주기적 스폰
+    const spawnInterval = setInterval(spawnResource, RESOURCE_SPAWN_INTERVAL);
+
+    return () => clearInterval(spawnInterval);
+  }, [mode, initialTime, timeLeft, worldDecorations, setWorldDecorations]);
+
+  // 자동 채집 (running 모드에서만)
+  useEffect(() => {
+    if (mode !== 'running') return;
+
+    const autoGather = () => {
+      const elapsedMinutes = Math.floor((initialTime - timeLeft) / 60);
+      const pool = getResourcePool(elapsedMinutes);
+      const resourceType = selectRandomResource(pool);
+
+      addItemToInventory(resourceType, 1);
+      addToast('자동 채집', `${resourceType} +1`, resourceType, '#8B4513');
+    };
+
+    const gatherInterval = setInterval(autoGather, AUTO_GATHER_INTERVAL);
+
+    return () => clearInterval(gatherInterval);
+  }, [mode, initialTime, timeLeft, addItemToInventory, addToast]);
+
+  // 자원 블록 디스폰 (시간 경과 후 삭제)
+  useEffect(() => {
+    const despawnCheck = setInterval(() => {
+      const now = Date.now();
+      setWorldDecorations(prev =>
+        prev.filter(d => {
+          if (!d.isResource || !d.spawnedAt) return true;
+          return now - d.spawnedAt < RESOURCE_DESPAWN_TIME;
+        })
+      );
+    }, 1000);
+
+    return () => clearInterval(despawnCheck);
+  }, [setWorldDecorations]);
+
+  // 자원 블록 채굴 (클릭 시) - running 모드에서만 채굴 가능
+  const handleMineResource = useCallback((entityId: number) => {
+    const entity = worldDecorations.find(d => d.id === entityId);
+    if (!entity) return;
+
+    // running 모드가 아니면 채굴 불가
+    if (mode !== 'running') {
+      // 일반 아이템 줍기 (자원 블록이 아닌 경우)
+      if (!entity.isResource) {
+        addItemToInventory(entity.type, 1);
+        setWorldDecorations(prev => prev.filter(d => d.id !== entityId));
+      }
+      return;
+    }
+
+    // 자원 블록 채굴
+    addItemToInventory(entity.type, 1);
+    setWorldDecorations(prev => prev.filter(d => d.id !== entityId));
+
+    // 채굴 토스트
+    if (entity.isResource) {
+      addToast('채굴 완료!', `${entity.type} +1`, entity.type, '#55FF55');
+    }
+  }, [mode, worldDecorations, addItemToInventory, setWorldDecorations, addToast]);
 
   // Timer loop
   useEffect(() => {
@@ -722,7 +865,7 @@ function App() {
         onDragEnd={isInventoryOpen ? () => {} : handleDragEnd}
         onWorldClick={isInventoryOpen ? () => {} : handleWorldClick}
         onEntityRightClick={isInventoryOpen ? () => {} : handleEntityRightClick}
-        onEntityClick={isInventoryOpen ? () => {} : handleEntityClick}
+        onEntityClick={isInventoryOpen ? () => {} : handleMineResource}
       />
 
       {/* 핫바 UI */}

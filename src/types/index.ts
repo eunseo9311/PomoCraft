@@ -45,6 +45,8 @@ export interface WorldDecoration {
   bottom: number;
   size: number;
   flip: boolean;
+  spawnedAt?: number;   // 생성 시간 (자원 블록 디스폰용)
+  isResource?: boolean; // 자원 블록 여부
 }
 
 export interface Toast {
