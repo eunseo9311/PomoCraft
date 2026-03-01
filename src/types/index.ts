@@ -1,7 +1,7 @@
 export type TimerMode = 'idle' | 'running' | 'paused' | 'done';
 
 // 기존 엔티티 (몹/장식)
-export type EntityType = 'flower' | 'tree' | 'dog' | 'cat' | 'horse' | 'zombie' | 'skeleton' | 'creeper';
+export type EntityType = 'flower' | 'tree' | 'dog' | 'cat' | 'horse' | 'zombie' | 'skeleton' | 'creeper' | 'stone_block';
 
 // 자원 아이템
 export type ResourceType = 'wood' | 'stone' | 'plank' | 'stick' | 'cobblestone';
@@ -42,6 +42,7 @@ export interface Inventory {
   zombie: number;
   skeleton: number;
   creeper: number;
+  stone_block: number;
 }
 
 // 새로운 인벤토리 시스템 (슬롯 기반)

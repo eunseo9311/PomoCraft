@@ -375,6 +375,65 @@ function App() {
     }
   }, [worldDecorations]);
 
+  // 엔티티 클릭 (채집)
+  const handleEntityClick = useCallback((entityId: number) => {
+    const entity = worldDecorations.find(d => d.id === entityId);
+    if (!entity) return;
+
+    // 채집 가능한 자원 정의
+    const harvestableResources: Record<string, { resource: ItemType; minAmount: number; maxAmount: number }> = {
+      tree: { resource: 'wood', minAmount: 1, maxAmount: 3 },
+      stone_block: { resource: 'stone', minAmount: 1, maxAmount: 2 },
+    };
+
+    const harvestInfo = harvestableResources[entity.type];
+    if (!harvestInfo) return;
+
+    // 랜덤 수량 계산
+    const amount = Math.floor(Math.random() * (harvestInfo.maxAmount - harvestInfo.minAmount + 1)) + harvestInfo.minAmount;
+
+    // 인벤토리에 자원 추가
+    setPlayerInventory(prev => {
+      const newSlots = [...prev.slots];
+      let remaining = amount;
+
+      // 기존 슬롯에 같은 아이템 있으면 합치기
+      for (let i = 0; i < newSlots.length && remaining > 0; i++) {
+        if (newSlots[i].type === harvestInfo.resource) {
+          const maxStack = MAX_STACK[harvestInfo.resource] || 64;
+          const canAdd = Math.min(remaining, maxStack - newSlots[i].count);
+          if (canAdd > 0) {
+            newSlots[i] = { ...newSlots[i], count: newSlots[i].count + canAdd };
+            remaining -= canAdd;
+          }
+        }
+      }
+
+      // 빈 슬롯에 추가
+      for (let i = 0; i < newSlots.length && remaining > 0; i++) {
+        if (!newSlots[i].type) {
+          const maxStack = MAX_STACK[harvestInfo.resource] || 64;
+          const toAdd = Math.min(remaining, maxStack);
+          newSlots[i] = { type: harvestInfo.resource, count: toAdd };
+          remaining -= toAdd;
+        }
+      }
+
+      return { ...prev, slots: newSlots };
+    });
+
+    // 자원 제거 (나무/돌 사라짐)
+    setWorldDecorations(prev => prev.filter(d => d.id !== entityId));
+
+    // 토스트 표시
+    addToast(
+      '자원 획득!',
+      `${harvestInfo.resource} x${amount}`,
+      harvestInfo.resource,
+      '#55FF55'
+    );
+  }, [worldDecorations, setWorldDecorations, addToast]);
+
   // 제작 결과를 인벤토리에 추가
   const handleCraftResult = useCallback((item: { type: ItemType; count: number }) => {
     setPlayerInventory(prev => {
@@ -543,6 +602,21 @@ function App() {
       }
     );
 
+    // 집중 시간에 따라 돌 블록도 생성
+    if (minFocused >= 1) {
+      const stoneBlockCount = minFocused >= 25 ? 3 : minFocused >= 15 ? 2 : 1;
+      for (let i = 0; i < stoneBlockCount; i++) {
+        newDecos.push({
+          id: Date.now() + Math.random() + 1000,
+          type: 'stone_block' as EntityType,
+          x: 5 + Math.random() * 85,
+          bottom: 12 + Math.random() * 8,
+          size: 48 + Math.random() * 16,
+          flip: false,
+        });
+      }
+    }
+
     setWorldDecorations((prev) => [...prev, ...newDecos]);
   };
 
@@ -606,6 +680,7 @@ function App() {
         onDragEnd={isInventoryOpen ? () => {} : handleDragEnd}
         onWorldClick={isInventoryOpen ? () => {} : handleWorldClick}
         onEntityRightClick={isInventoryOpen ? () => {} : handleEntityRightClick}
+        onEntityClick={isInventoryOpen ? () => {} : handleEntityClick}
       />
 
       {/* 핫바 UI */}

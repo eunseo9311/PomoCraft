@@ -14,6 +14,7 @@ interface WorldViewProps {
   onDragEnd: () => void;
   onWorldClick: (xPercent: number, bottomPercent: number) => void;
   onEntityRightClick: (entityId: number) => void;
+  onEntityClick: (entityId: number) => void;
 }
 
 export function WorldView({
@@ -28,6 +29,7 @@ export function WorldView({
   onDragEnd,
   onWorldClick,
   onEntityRightClick,
+  onEntityClick,
 }: WorldViewProps) {
   const worldRef = useRef<HTMLDivElement>(null);
 
@@ -120,7 +122,10 @@ export function WorldView({
                 initBottom: deco.bottom,
               });
             }}
-            onClick={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              onEntityClick(deco.id);
+            }}
             onContextMenu={(e) => {
               e.preventDefault();
               e.stopPropagation();

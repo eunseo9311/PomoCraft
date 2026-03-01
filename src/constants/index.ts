@@ -11,7 +11,8 @@ export const ENTITY_NAMES: Record<EntityType, string> = {
   horse: '말',
   zombie: '좀비',
   skeleton: '스켈레톤',
-  creeper: '크리퍼'
+  creeper: '크리퍼',
+  stone_block: '돌 블록'
 };
 
 // 모든 아이템 이름
@@ -25,6 +26,7 @@ export const ITEM_NAMES: Partial<Record<ItemType, string>> = {
   zombie: '좀비',
   skeleton: '스켈레톤',
   creeper: '크리퍼',
+  stone_block: '돌 블록',
   // 자원
   wood: '원목',
   plank: '나무 판자',
@@ -66,7 +68,8 @@ export const DEFAULT_INVENTORY: Inventory = {
   horse: 0,
   zombie: 0,
   skeleton: 0,
-  creeper: 0
+  creeper: 0,
+  stone_block: 0
 };
 
 // 빈 슬롯
