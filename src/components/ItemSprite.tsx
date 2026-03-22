@@ -7,37 +7,23 @@ interface ItemSpriteProps {
   className?: string;
 }
 
+// ITEMS에 없는 아이템도 텍스처 경로를 추정
+function resolveImageUrl(itemId: string): string {
+  // ITEMS에 등록된 아이템이면 그대로 사용
+  const url = getItemImageUrl(itemId);
+  if (url) return url;
+
+  // 등록 안 된 아이템은 blocks/ 와 items/ 폴더에서 찾기 시도
+  return `/textures/blocks/${itemId}.png`;
+}
+
 export function ItemSprite({ itemId, size = 32, className = '' }: ItemSpriteProps) {
-  const imageUrl = getItemImageUrl(itemId);
+  const imageUrl = resolveImageUrl(itemId);
 
   // size=0 means fill parent container
   const sizeStyle = size === 0
     ? { width: '100%', height: '100%' }
     : { width: size, height: size };
-
-  if (!imageUrl || !ITEMS[itemId]) {
-    // Fallback: display item ID as text if no image found
-    return (
-      <div
-        className={`item-sprite item-sprite-fallback ${className}`}
-        style={{
-          ...sizeStyle,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontSize: size === 0 ? 12 : size * 0.3,
-          backgroundColor: '#555',
-          color: '#fff',
-          borderRadius: 2,
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-        }}
-        title={itemId}
-      >
-        {itemId.slice(0, 3)}
-      </div>
-    );
-  }
 
   return (
     <img
@@ -50,6 +36,13 @@ export function ItemSprite({ itemId, size = 32, className = '' }: ItemSpriteProp
         objectFit: 'fill',
       }}
       draggable={false}
+      onError={(e) => {
+        // blocks/에서 못 찾으면 items/로 시도
+        const target = e.currentTarget;
+        if (target.src.includes('/blocks/')) {
+          target.src = `/textures/items/${itemId}.png`;
+        }
+      }}
     />
   );
 }

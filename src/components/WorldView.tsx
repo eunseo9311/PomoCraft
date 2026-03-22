@@ -1,6 +1,7 @@
 import { useRef } from 'react';
 import { WorldGrid, GhostBlock, TimerMode, InventorySlot, SteveState, SpriteType, MiningState, DroppedItem } from '../types';
 import { GRID, gridToPercent } from '../constants/grid';
+import { getItemImageUrl } from '../constants';
 import { PixelSprite } from './PixelSprite';
 import { ItemSprite } from './ItemSprite';
 
@@ -316,13 +317,9 @@ export function WorldView({
               );
             }
 
-            // 블록 텍스처 결정
-            let textureSrc = "/textures/blocks/dirt.png";
-            if (blockType === 'grass_side') {
-              textureSrc = "/textures/blocks/grass_side.png";
-            } else if (blockType !== 'dirt') {
-              textureSrc = `/textures/blocks/${blockType}.png`;
-            }
+            // 블록 텍스처 결정 - ITEMS 등록 경로 우선 사용
+            const itemUrl = getItemImageUrl(blockType);
+            const textureSrc = itemUrl || `/textures/blocks/${blockType}.png`;
 
             return (
               <img
