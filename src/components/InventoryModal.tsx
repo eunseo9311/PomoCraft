@@ -65,6 +65,9 @@ export function InventoryModal({
     Array(9).fill(null).map(() => ({ ...EMPTY_SLOT }))
   );
 
+  // 호버 상태
+  const [hoveredSlot, setHoveredSlot] = useState<string | null>(null);
+
   // 드래그 상태
   const [isDragging, setIsDragging] = useState(false);
   const [isRightDrag, setIsRightDrag] = useState(false);
@@ -202,14 +205,17 @@ export function InventoryModal({
         onClick={() => onSlotClick(slotIndex)}
         onDoubleClick={() => onSlotDoubleClick(slotIndex)}
         onMouseDown={(e) => handleMouseDown(slotIndex, e)}
-        onMouseEnter={() => handleMouseEnter(slotIndex)}
+        onMouseEnter={() => {
+          handleMouseEnter(slotIndex);
+          if (slot.type) setHoveredSlot(`inv-${slotIndex}`);
+        }}
+        onMouseLeave={() => setHoveredSlot(null)}
         onContextMenu={(e) => {
           e.preventDefault();
           if (!isDragging) {
             onSlotRightClick(slotIndex);
           }
         }}
-        title={slot.type ? getItemName(slot.type) : ''}
       >
         {slot.type && (
           <>
@@ -270,7 +276,8 @@ export function InventoryModal({
                     key={"craft-" + i}
                     className="inv-slot inv-craft-slot"
                     onClick={() => handleCraftSlotClick(i)}
-                    title={slot.type ? getItemName(slot.type) : ''}
+                    onMouseEnter={() => slot.type && setHoveredSlot(`craft-${i}`)}
+                    onMouseLeave={() => setHoveredSlot(null)}
                   >
                     {slot.type && (
                       <>
@@ -313,6 +320,24 @@ export function InventoryModal({
             {Array.from({ length: 9 }, (_, i) => renderSlot(i, true))}
           </div>
         </div>
+
+        {/* 아이템 이름 표시 (하단 오른쪽) */}
+        {hoveredSlot && (() => {
+          let itemType: string | null = null;
+          if (hoveredSlot.startsWith('inv-')) {
+            const idx = parseInt(hoveredSlot.replace('inv-', ''));
+            itemType = inventory.slots[idx]?.type;
+          } else if (hoveredSlot.startsWith('craft-')) {
+            const idx = parseInt(hoveredSlot.replace('craft-', ''));
+            itemType = craftGrid[idx]?.type;
+          }
+          if (!itemType) return null;
+          return (
+            <div className="inv-item-name">
+              {getItemName(itemType)}
+            </div>
+          );
+        })()}
       </div>
     </div>
   );

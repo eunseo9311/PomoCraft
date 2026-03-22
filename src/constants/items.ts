@@ -250,8 +250,11 @@ export function getMaxStack(itemId: string): number {
   return ITEMS[itemId]?.maxStack || 64;
 }
 
-// 블록으로 배치 가능한 아이템인지 확인 (blocks/ 경로의 이미지를 가진 아이템)
+// 블록으로 배치 가능한 아이템인지 확인
+const EXTRA_PLACEABLE = new Set(['boat', 'bed', 'door', 'iron_door', 'sign']);
+
 export function isPlaceableBlock(itemId: string): boolean {
+  if (EXTRA_PLACEABLE.has(itemId)) return true;
   const item = ITEMS[itemId];
   if (!item) return false;
   return item.image.startsWith('blocks/');

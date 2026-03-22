@@ -1028,3 +1028,37 @@ body {
   0%, 100% { opacity: 0.7; }
   50% { opacity: 0.85; }
 }
+
+/* 핫바 아이템 이름 (슬롯 오른쪽 아래) */
+.hotbar-item-name {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: calc(50% + 8px);
+  background: rgba(16, 0, 16, 0.9);
+  color: #fff;
+  font-size: 12px;
+  padding: 3px 8px;
+  border-radius: 3px;
+  border: 1px solid #5030a0;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 999;
+  font-family: 'Courier New', monospace;
+}
+
+/* 인벤토리 모달 아이템 이름 (하단 오른쪽 고정) */
+.inv-item-name {
+  position: absolute;
+  bottom: 8px;
+  right: 12px;
+  background: rgba(16, 0, 16, 0.9);
+  color: #fff;
+  font-size: 13px;
+  padding: 4px 10px;
+  border-radius: 3px;
+  border: 1px solid #5030a0;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 999;
+  font-family: 'Courier New', monospace;
+}

@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { PlayerInventory } from '../types';
 import { getItemName } from '../constants';
 import { ItemSprite } from './ItemSprite';
@@ -8,6 +9,7 @@ interface HotbarProps {
 }
 
 export function Hotbar({ inventory, onSlotSelect }: HotbarProps) {
+  const [hoveredSlot, setHoveredSlot] = useState<number | null>(null);
   return (
     <div className="hotbar-ui">
       {Array.from({ length: 9 }, (_, i) => {
@@ -20,7 +22,8 @@ export function Hotbar({ inventory, onSlotSelect }: HotbarProps) {
             key={i}
             className={slotClass}
             onClick={() => onSlotSelect(i)}
-            title={slot.type ? getItemName(slot.type) : ''}
+            onMouseEnter={() => setHoveredSlot(i)}
+            onMouseLeave={() => setHoveredSlot(null)}
           >
             <span className="hotbar-slot-number">{i + 1}</span>
             {slot.type && (
@@ -30,6 +33,11 @@ export function Hotbar({ inventory, onSlotSelect }: HotbarProps) {
                   <span className="hotbar-slot-count">{slot.count}</span>
                 )}
               </>
+            )}
+            {hoveredSlot === i && slot.type && (
+              <div className="hotbar-item-name">
+                {getItemName(slot.type)}
+              </div>
             )}
           </div>
         );
