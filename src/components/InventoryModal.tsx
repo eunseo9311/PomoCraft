@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { PlayerInventory, HeldItem, InventorySlot, ItemType } from '../types';
 import { EMPTY_SLOT } from '../constants';
-import { matchRecipe, RECIPES_2X2 } from '../constants/crafting';
+import { matchRecipe, RECIPES_2X2, RECIPES_3X3 } from '../constants/crafting';
 import { PixelSprite } from './PixelSprite';
 import { ItemSprite } from './ItemSprite';
 
@@ -62,7 +62,7 @@ export function InventoryModal({
   onSetHeldItem,
 }: InventoryModalProps) {
   const [craftGrid, setCraftGrid] = useState<InventorySlot[]>(
-    Array(4).fill(null).map(() => ({ ...EMPTY_SLOT }))
+    Array(9).fill(null).map(() => ({ ...EMPTY_SLOT }))
   );
 
   // 드래그 상태
@@ -71,12 +71,12 @@ export function InventoryModal({
   const [draggedSlots, setDraggedSlots] = useState<number[]>([]);
 
   // 제작 결과 계산
-  const craftResult = matchRecipe(craftGrid, 2, RECIPES_2X2);
+  const craftResult = matchRecipe(craftGrid, 3, [...RECIPES_2X2, ...RECIPES_3X3]);
 
   // 모달 열릴 때/닫힐 때 상태 초기화
   useEffect(() => {
     if (!isOpen) {
-      setCraftGrid(Array(4).fill(null).map(() => ({ ...EMPTY_SLOT })));
+      setCraftGrid(Array(9).fill(null).map(() => ({ ...EMPTY_SLOT })));
     }
     // 모달 열릴 때 드래그 상태 초기화
     setIsDragging(false);

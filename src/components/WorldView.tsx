@@ -11,6 +11,7 @@ interface WorldViewProps {
   mode: TimerMode;
   isNight: boolean;
   isSunset?: boolean;
+  isRaining?: boolean;
   selectedItem: InventorySlot | null;
   steveState: SteveState;
   miningState: MiningState | null;
@@ -31,6 +32,7 @@ export function WorldView({
   mode,
   isNight,
   isSunset = false,
+  isRaining = false,
   selectedItem,
   steveState,
   miningState,
@@ -248,6 +250,23 @@ export function WorldView({
         }}
       ></div>
 
+      {/* 비 효과 */}
+      {isRaining && (
+        <div className="rain-container">
+          {Array.from({ length: 80 }, (_, i) => (
+            <div
+              key={`rain-${i}`}
+              className="raindrop"
+              style={{
+                left: `${Math.random() * 100}%`,
+                animationDuration: `${0.4 + Math.random() * 0.3}s`,
+                animationDelay: `${Math.random() * 0.5}s`,
+              }}
+            />
+          ))}
+        </div>
+      )}
+
       {/* 땅 블록 렌더링 - 4줄 (맨 위 잔디, 나머지 흙) */}
       <div className="ground-blocks">
         {groundBlocks.map((row, rowIdx) =>
@@ -277,10 +296,38 @@ export function WorldView({
 
             const isMineable = rowIdx < 3; // 맨 아래 줄은 캘 수 없음
 
+            // 물 블록은 별도 렌더링 (채굴 불가, 양동이로 퍼올리기 가능)
+            if (blockType === 'water') {
+              return (
+                <img
+                  key={`ground-${rowIdx}-${col}`}
+                  src="/textures/blocks/water.png"
+                  alt="water"
+                  className="ground-block ground-block-water"
+                  style={{
+                    left: `${col * 5}%`,
+                    bottom: `${(3 - rowIdx) * 25}%`,
+                  }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onGroundBlockPlace(col, rowIdx);
+                  }}
+                />
+              );
+            }
+
+            // 블록 텍스처 결정
+            let textureSrc = "/textures/blocks/dirt.png";
+            if (blockType === 'grass_side') {
+              textureSrc = "/textures/blocks/grass_side.png";
+            } else if (blockType !== 'dirt') {
+              textureSrc = `/textures/blocks/${blockType}.png`;
+            }
+
             return (
               <img
                 key={`ground-${rowIdx}-${col}`}
-                src={blockType === 'grass_side' ? "/textures/blocks/grass_side.png" : "/textures/blocks/dirt.png"}
+                src={textureSrc}
                 alt={blockType}
                 className={`ground-block ${isBeingMined ? 'ground-block-mining' : ''} ${isMineable ? 'ground-block-mineable' : ''}`}
                 style={{

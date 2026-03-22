@@ -2,7 +2,8 @@ import { InventorySlot, PlayerInventory } from '../types';
 
 export { PALETTE } from './palette';
 export { SPRITES_DATA } from './sprites';
-export { ITEMS, getItemImageUrl, getItemName, getMaxStack } from './items';
+export { ITEMS, getItemImageUrl, getItemName, getMaxStack, isPlaceableBlock, getResourcePool } from './items';
+export type { ResourcePoolItem } from './items';
 export type { ItemData } from './items';
 export { RECIPES_2X2, RECIPES_3X3, matchRecipe } from './crafting';
 export type { Recipe } from './crafting';

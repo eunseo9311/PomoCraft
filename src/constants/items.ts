@@ -249,3 +249,120 @@ export function getItemName(itemId: string): string {
 export function getMaxStack(itemId: string): number {
   return ITEMS[itemId]?.maxStack || 64;
 }
+
+// 블록으로 배치 가능한 아이템인지 확인 (blocks/ 경로의 이미지를 가진 아이템)
+export function isPlaceableBlock(itemId: string): boolean {
+  const item = ITEMS[itemId];
+  if (!item) return false;
+  return item.image.startsWith('blocks/');
+}
+
+// 희귀도 티어 (집중 시간에 따라 잠금 해제)
+type RarityTier = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary';
+
+const RARITY_CONFIG: Record<RarityTier, { minMinutes: number; weight: number }> = {
+  common:    { minMinutes: 0,  weight: 20 },
+  uncommon:  { minMinutes: 2,  weight: 12 },
+  rare:      { minMinutes: 5,  weight: 7 },
+  epic:      { minMinutes: 15, weight: 3 },
+  legendary: { minMinutes: 25, weight: 1 },
+};
+
+// 각 아이템의 희귀도 매핑
+const ITEM_RARITY: Record<string, RarityTier> = {
+  // Common - 기본 자원
+  'dirt': 'common', 'cobblestone': 'common', 'oak_log': 'common', 'sand': 'common',
+  'gravel': 'common', 'stick': 'common', 'coal': 'common', 'seeds': 'common',
+  'oak_plank': 'common', 'leaves': 'common', 'flower': 'common', 'rose': 'common',
+  'grass': 'common', 'torch': 'common',
+
+  // Uncommon - 약간 가공된 자원
+  'birch_plank': 'uncommon', 'spruce_plank': 'uncommon', 'jungle_plank': 'uncommon',
+  'string': 'uncommon', 'feather': 'uncommon', 'leather': 'uncommon', 'flint': 'uncommon',
+  'clay_ball': 'uncommon', 'bone': 'uncommon', 'wheat': 'uncommon', 'apple': 'uncommon',
+  'egg': 'uncommon', 'sugar': 'uncommon', 'carrot': 'uncommon', 'potato': 'uncommon',
+  'brown_mushroom': 'uncommon', 'red_mushroom': 'uncommon', 'snow': 'uncommon',
+  'sandstone': 'uncommon', 'glass': 'uncommon', 'clay': 'uncommon', 'cactus': 'uncommon',
+  'pumpkin': 'uncommon', 'melon': 'uncommon', 'white_wool': 'uncommon',
+  'brick_item': 'uncommon', 'bowl': 'uncommon', 'paper': 'uncommon',
+  'raw_beef': 'uncommon', 'raw_pork': 'uncommon', 'raw_chicken': 'uncommon', 'raw_fish': 'uncommon',
+
+  // Rare - 광물 및 가치있는 자원
+  'iron_ore': 'rare', 'iron_ingot': 'rare', 'coal_ore': 'rare',
+  'gold_ore': 'rare', 'gold_ingot': 'rare', 'gold_nugget': 'rare',
+  'redstone': 'rare', 'lapis_ore': 'rare', 'redstone_ore': 'rare',
+  'brick': 'rare', 'bookshelf': 'rare', 'book': 'rare',
+  'furnace': 'rare', 'chest': 'rare', 'ladder': 'rare', 'rail': 'rare',
+  'ice': 'rare', 'nether_brick': 'rare', 'glowstone': 'rare', 'quartz_block': 'rare',
+  'nether_quartz': 'rare', 'slimeball': 'rare', 'gunpowder': 'rare',
+  'steak': 'rare', 'cooked_pork': 'rare', 'cooked_chicken': 'rare', 'cooked_fish': 'rare',
+  'bread': 'rare', 'cookie': 'rare',
+  'arrow': 'rare', 'bucket': 'rare', 'sign': 'rare',
+  // 양털 색상들
+  'orange_wool': 'rare', 'magenta_wool': 'rare', 'light_blue_wool': 'rare',
+  'yellow_wool': 'rare', 'lime_wool': 'rare', 'pink_wool': 'rare',
+  'gray_wool': 'rare', 'light_gray_wool': 'rare', 'cyan_wool': 'rare',
+  'purple_wool': 'rare', 'blue_wool': 'rare', 'brown_wool': 'rare',
+  'green_wool': 'rare', 'red_wool': 'rare', 'black_wool': 'rare',
+
+  // Epic - 다이아몬드급 & 특수 자원
+  'diamond': 'epic', 'diamond_ore': 'epic', 'emerald_ore': 'epic',
+  'obsidian': 'epic', 'iron_block': 'epic', 'lapis_block': 'epic', 'redstone_block': 'epic',
+  'tnt': 'epic', 'golden_apple': 'epic', 'blaze_rod': 'epic', 'blaze_powder': 'epic',
+  'ender_pearl': 'epic', 'crafting_table': 'epic',
+  // 염료
+  'white_dye': 'epic', 'red_dye': 'epic', 'green_dye': 'epic', 'brown_dye': 'epic',
+  'blue_dye': 'epic', 'purple_dye': 'epic', 'cyan_dye': 'epic',
+  'light_gray_dye': 'epic', 'gray_dye': 'epic', 'pink_dye': 'epic',
+  'lime_dye': 'epic', 'yellow_dye': 'epic', 'light_blue_dye': 'epic',
+  'magenta_dye': 'epic', 'orange_dye': 'epic', 'black_dye': 'epic',
+
+  // Legendary - 최상급
+  'emerald': 'legendary', 'diamond_block': 'legendary', 'gold_block': 'legendary',
+  'emerald_block': 'legendary', 'nether_star': 'legendary', 'music_disc': 'legendary',
+  'saddle': 'legendary',
+};
+
+export interface ResourcePoolItem {
+  type: string;
+  weight: number;
+  minMinutes: number;
+}
+
+// ITEMS 라이브러리 기반으로 자원 풀 자동 생성
+export function getResourcePool(elapsedMinutes: number): ResourcePoolItem[] {
+  const pool: ResourcePoolItem[] = [];
+
+  for (const [id, item] of Object.entries(ITEMS)) {
+    // grass_side는 grass와 중복이므로 제외
+    if (id === 'grass_side') continue;
+    // 제작으로만 얻어야 하는 아이템 제외 (도구, 갑옷, 물약 등)
+    if (item.image.startsWith('items/pickaxe') ||
+        item.image.startsWith('items/hatchet') ||
+        item.image.startsWith('items/shovel') ||
+        item.image.startsWith('items/hoe') ||
+        item.image.startsWith('items/sword') ||
+        item.image.startsWith('items/helmet') ||
+        item.image.startsWith('items/chestplate') ||
+        item.image.startsWith('items/leggings') ||
+        item.image.startsWith('items/boots') ||
+        id === 'potion' || id === 'glass_bottle' ||
+        id === 'fishing_rod' || id === 'flint_and_steel' ||
+        id === 'shears' || id === 'bow' ||
+        id === 'compass' || id === 'clock' || id === 'map' ||
+        id === 'door' || id === 'iron_door' || id === 'bed' ||
+        id === 'boat' || id === 'minecart' || id === 'painting' ||
+        id === 'cake' || id === 'mushroom_stew' || id === 'pumpkin_pie' ||
+        id === 'water_bucket' || id === 'lava_bucket' || id === 'milk_bucket'
+    ) continue;
+
+    const rarity = ITEM_RARITY[id] || 'uncommon';
+    const config = RARITY_CONFIG[rarity];
+
+    if (elapsedMinutes >= config.minMinutes) {
+      pool.push({ type: id, weight: config.weight, minMinutes: config.minMinutes });
+    }
+  }
+
+  return pool;
+}

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { TimerMode, PlayerInventory, HeldItem, ItemType, SteveState, GhostBlock, DroppedItem, MiningState } from './types';
-import { createTestInventory, EMPTY_SLOT, INVENTORY_STORAGE_KEY, getMaxStack } from './constants';
+import { createTestInventory, EMPTY_SLOT, INVENTORY_STORAGE_KEY, getMaxStack, isPlaceableBlock, getResourcePool } from './constants';
 import { GRID, percentToGrid, isCellEmpty, hasSupport, isValidPlacement } from './constants/grid';
 import { useToast, useLocalStorage } from './hooks';
 import {
@@ -25,42 +25,16 @@ const GROUND_Y = 0;            // 기본 땅 높이 (%)
 const STEP_UP_HEIGHT = 6.5;  // 한 칸 높이(6.25%)까지 자동 오르기 (여유분 포함)
 
 // 자원 채집 상수
-const BLOCK_MOVE_INTERVAL = 12000;      // 블록 위치 변경 간격 (ms) - 12초
-const TIME_BASED_GATHER_INTERVAL = 20000; // 시간 기반 아이템 획득 간격 (ms) - 20초
-const MAX_RESOURCES_ON_SCREEN = 2;      // 화면에 최대 자원 블록 수
+const BLOCK_MOVE_INTERVAL = 8000;       // 블록 위치 변경 간격 (ms) - 8초
+const TIME_BASED_GATHER_INTERVAL = 14000; // 시간 기반 아이템 획득 간격 (ms) - 14초
+const MAX_RESOURCES_ON_SCREEN = 3;      // 화면에 최대 자원 블록 수
 
 // 채굴 상수
 const MINING_TIME = 1500;               // 채굴 시간 (ms) - 1.5초
 const PICKUP_DISTANCE = 8;              // 아이템 수집 거리 (%)
 
-// 자원 타입 및 확률 (집중 시간에 따라 변경됨)
-interface ResourceConfig {
-  type: ItemType;
-  weight: number;  // 스폰 가중치
-  minMinutes: number; // 최소 집중 시간 (분)
-}
-
-const getResourcePool = (elapsedMinutes: number): ResourceConfig[] => {
-  const pool: ResourceConfig[] = [
-    // 기본 자원 (항상)
-    { type: 'oak_log', weight: 30, minMinutes: 0 },
-    { type: 'dirt', weight: 25, minMinutes: 0 },
-    // 중간 세션 (5분+)
-    { type: 'cobblestone', weight: 20, minMinutes: 5 },
-    { type: 'coal', weight: 15, minMinutes: 5 },
-    // 긴 세션 (15분+)
-    { type: 'iron_ore', weight: 10, minMinutes: 15 },
-    { type: 'gold_ore', weight: 5, minMinutes: 20 },
-    // 아주 긴 세션 (25분+, 희귀)
-    { type: 'diamond', weight: 2, minMinutes: 25 },
-    { type: 'emerald', weight: 1, minMinutes: 30 },
-  ];
-
-  return pool.filter(r => elapsedMinutes >= r.minMinutes);
-};
-
 // 가중치 기반 랜덤 선택
-const selectRandomResource = (pool: ResourceConfig[]): ItemType => {
+const selectRandomResource = (pool: { type: string; weight: number }[]): ItemType => {
   const totalWeight = pool.reduce((sum, r) => sum + r.weight, 0);
   let random = Math.random() * totalWeight;
 
@@ -116,6 +90,9 @@ function App() {
   const [droppedItems, setDroppedItems] = useState<DroppedItem[]>([]);
   const droppedItemIdRef = useRef(0);
   const miningIntervalRef = useRef<number | null>(null);
+
+  // 날씨 시스템
+  const [isRaining, setIsRaining] = useState(false);
 
   // 땅 블록 상태 (4줄 x 21열, row 0=잔디, row 1-3=흙)
   const [groundBlocks, setGroundBlocks] = useState<(string | null)[][]>(() => {
@@ -771,6 +748,28 @@ function App() {
     const selectedSlot = playerInventory.slots[playerInventory.hotbar];
     if (!selectedSlot.type || selectedSlot.count <= 0) return;
 
+    // 배치 불가능한 아이템은 바닥에 드롭
+    if (!isPlaceableBlock(selectedSlot.type)) {
+      const newDroppedItem: DroppedItem = {
+        id: ++droppedItemIdRef.current,
+        type: selectedSlot.type,
+        x: xPercent,
+        y: 2,
+      };
+      setDroppedItems(prev => [...prev, newDroppedItem]);
+      setPlayerInventory(prev => {
+        const newSlots = [...prev.slots];
+        const slot = newSlots[prev.hotbar];
+        if (slot.count > 1) {
+          newSlots[prev.hotbar] = { ...slot, count: slot.count - 1 };
+        } else {
+          newSlots[prev.hotbar] = { type: null, count: 0 };
+        }
+        return { ...prev, slots: newSlots };
+      });
+      return;
+    }
+
     // 클릭 위치를 Grid 좌표로 변환
     const { col, row } = percentToGrid(xPercent, bottomPercent);
     const stevePos = getSteveGridPos();
@@ -801,8 +800,102 @@ function App() {
     const selectedSlot = playerInventory.slots[playerInventory.hotbar];
     if (!selectedSlot.type || selectedSlot.count <= 0) return;
 
+    const currentBlock = groundBlocks[row]?.[col];
+
+    // 빈 양동이로 물 퍼올리기
+    if (selectedSlot.type === 'bucket' && currentBlock === 'water') {
+      setGroundBlocks(prev => {
+        const newBlocks = prev.map(r => [...r]);
+        newBlocks[row][col] = null;
+        return newBlocks;
+      });
+      setPlayerInventory(prev => {
+        const newSlots = [...prev.slots];
+        const slot = newSlots[prev.hotbar];
+        if (slot.count > 1) {
+          newSlots[prev.hotbar] = { ...slot, count: slot.count - 1 };
+        } else {
+          newSlots[prev.hotbar] = { type: null, count: 0 };
+        }
+        // 물양동이를 인벤토리에 추가
+        let added = false;
+        for (let i = 0; i < newSlots.length; i++) {
+          if (!newSlots[i].type) {
+            newSlots[i] = { type: 'water_bucket', count: 1 };
+            added = true;
+            break;
+          }
+        }
+        if (!added) {
+          // 인벤토리 가득 차면 핫바 슬롯에 직접 넣기
+          newSlots[prev.hotbar] = { type: 'water_bucket', count: 1 };
+        }
+        return { ...prev, slots: newSlots };
+      });
+      return;
+    }
+
+    // 물양동이로 빈 칸에 물 배치
+    if (selectedSlot.type === 'water_bucket' && currentBlock === null) {
+      setGroundBlocks(prev => {
+        const newBlocks = prev.map(r => [...r]);
+        newBlocks[row][col] = 'water';
+        return newBlocks;
+      });
+      // 물양동이 → 빈 양동이
+      setPlayerInventory(prev => {
+        const newSlots = [...prev.slots];
+        newSlots[prev.hotbar] = { type: 'bucket', count: 1 };
+        return { ...prev, slots: newSlots };
+      });
+      return;
+    }
+
+    // 배치 불가능한 아이템은 바닥에 드롭 (떠있는 효과)
+    if (!isPlaceableBlock(selectedSlot.type)) {
+      const dropX = col * 5 + 2.5;
+      const newDroppedItem: DroppedItem = {
+        id: ++droppedItemIdRef.current,
+        type: selectedSlot.type,
+        x: dropX,
+        y: 2,
+      };
+      setDroppedItems(prev => [...prev, newDroppedItem]);
+      setPlayerInventory(prev => {
+        const newSlots = [...prev.slots];
+        const slot = newSlots[prev.hotbar];
+        if (slot.count > 1) {
+          newSlots[prev.hotbar] = { ...slot, count: slot.count - 1 };
+        } else {
+          newSlots[prev.hotbar] = { type: null, count: 0 };
+        }
+        return { ...prev, slots: newSlots };
+      });
+      return;
+    }
+
+    // 물 위에 블록 놓으면 물을 대체
+    if (currentBlock === 'water') {
+      setGroundBlocks(prev => {
+        const newBlocks = prev.map(r => [...r]);
+        newBlocks[row][col] = selectedSlot.type;
+        return newBlocks;
+      });
+      setPlayerInventory(prev => {
+        const newSlots = [...prev.slots];
+        const slot = newSlots[prev.hotbar];
+        if (slot.count > 1) {
+          newSlots[prev.hotbar] = { ...slot, count: slot.count - 1 };
+        } else {
+          newSlots[prev.hotbar] = { type: null, count: 0 };
+        }
+        return { ...prev, slots: newSlots };
+      });
+      return;
+    }
+
     // 해당 위치에 이미 블록이 있으면 무시
-    if (groundBlocks[row]?.[col] !== null) return;
+    if (currentBlock !== null) return;
 
     // 블록 배치
     setGroundBlocks(prev => {
@@ -999,6 +1092,35 @@ function App() {
     return () => clearInterval(gatherInterval);
   }, [mode, initialTime, addItemToInventory, addToast]);
 
+  // 비가 오면 파인 땅에 물 채우기 (5초마다 빈 칸 하나씩)
+  useEffect(() => {
+    if (mode !== 'running' || !isRaining) return;
+
+    const fillWater = () => {
+      setGroundBlocks(prev => {
+        // 빈 칸 찾기 (위에서부터 - row 0이 맨 위)
+        const emptySpots: { row: number; col: number }[] = [];
+        for (let row = 0; row < prev.length; row++) {
+          for (let col = 0; col < prev[row].length; col++) {
+            if (prev[row][col] === null) {
+              emptySpots.push({ row, col });
+            }
+          }
+        }
+        if (emptySpots.length === 0) return prev;
+
+        // 랜덤으로 하나 선택해서 물 채우기
+        const spot = emptySpots[Math.floor(Math.random() * emptySpots.length)];
+        const newBlocks = prev.map(r => [...r]);
+        newBlocks[spot.row][spot.col] = 'water';
+        return newBlocks;
+      });
+    };
+
+    const waterInterval = setInterval(fillWater, 5000);
+    return () => clearInterval(waterInterval);
+  }, [mode, isRaining]);
+
   // 채굴 취소 함수
   const cancelMining = useCallback(() => {
     if (miningIntervalRef.current) {
@@ -1144,7 +1266,15 @@ function App() {
     setTimeLeft(time);
   };
 
-  const handleStart = () => setMode('running');
+  const handleStart = () => {
+    setMode('running');
+    // 20% 확률로 비 시작
+    if (Math.random() < 0.2) {
+      setIsRaining(true);
+    } else {
+      setIsRaining(false);
+    }
+  };
   const handlePause = () => setMode('paused');
   const handleReset = () => {
     setMode('idle');
@@ -1153,6 +1283,7 @@ function App() {
 
   const handleDone = useCallback(() => {
     setMode('done');
+    setIsRaining(false);
     const minFocused = Math.floor((initialTime - timeLeft) / 60);
 
     // 화면의 자원 블록 제거 (시각적 정리만, 아이템은 이미 시간 기반으로 획득됨)
@@ -1277,11 +1408,17 @@ function App() {
             col: groundCol,
             row: -(groundRow + 1), // 음수로 땅 블록 표시
             type: selectedSlot.type,
-            isValid: true,
+            isValid: isPlaceableBlock(selectedSlot.type),
           });
           return;
         }
       }
+      setGhostBlock(null);
+      return;
+    }
+
+    // 배치 불가능한 아이템은 ghost block 없이 드롭만 가능
+    if (!isPlaceableBlock(selectedSlot.type)) {
       setGhostBlock(null);
       return;
     }
@@ -1342,6 +1479,7 @@ function App() {
         mode={mode}
         isNight={isNight}
         isSunset={isSunset}
+        isRaining={isRaining}
         selectedItem={isInventoryOpen ? null : playerInventory.slots[playerInventory.hotbar]}
         steveState={steveState}
         miningState={miningState}
