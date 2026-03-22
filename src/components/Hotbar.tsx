@@ -1,4 +1,5 @@
 import { PlayerInventory } from '../types';
+import { getItemName } from '../constants';
 import { ItemSprite } from './ItemSprite';
 
 interface HotbarProps {
@@ -19,6 +20,7 @@ export function Hotbar({ inventory, onSlotSelect }: HotbarProps) {
             key={i}
             className={slotClass}
             onClick={() => onSlotSelect(i)}
+            title={slot.type ? getItemName(slot.type) : ''}
           >
             <span className="hotbar-slot-number">{i + 1}</span>
             {slot.type && (

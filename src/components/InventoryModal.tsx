@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { PlayerInventory, HeldItem, InventorySlot, ItemType } from '../types';
-import { EMPTY_SLOT } from '../constants';
+import { EMPTY_SLOT, getItemName } from '../constants';
 import { matchRecipe, RECIPES_2X2, RECIPES_3X3 } from '../constants/crafting';
 import { PixelSprite } from './PixelSprite';
 import { ItemSprite } from './ItemSprite';
@@ -209,6 +209,7 @@ export function InventoryModal({
             onSlotRightClick(slotIndex);
           }
         }}
+        title={slot.type ? getItemName(slot.type) : ''}
       >
         {slot.type && (
           <>
@@ -269,6 +270,7 @@ export function InventoryModal({
                     key={"craft-" + i}
                     className="inv-slot inv-craft-slot"
                     onClick={() => handleCraftSlotClick(i)}
+                    title={slot.type ? getItemName(slot.type) : ''}
                   >
                     {slot.type && (
                       <>
